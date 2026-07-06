@@ -1,0 +1,607 @@
+#!/bin/bash
+
+# Interactive Font Generator
+# Processes font families with metadata patcher and optionally generates nerd fonts
+
+set -e  # Exit on any error
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+DIM='\033[2m'
+NC='\033[0m' # No Color
+
+# Default directories
+SRC_DIR="./src"
+BUILD_DIR="./build"
+
+# Global variable to store metadata options
+METADATA_OPTIONS=""
+
+# Function to print colored output
+print_info() {
+    echo -e "${BLUE}ℹ${NC} $1"
+}
+
+print_success() {
+    echo -e "${GREEN}✓${NC} $1"
+}
+
+print_warning() {
+    echo -e "${YELLOW}⚠${NC} $1"
+}
+
+print_error() {
+    echo -e "${RED}✗${NC} $1"
+}
+
+print_header() {
+    echo -e "${CYAN}▶${NC} $1"
+}
+
+# Function to ask yes/no question
+ask_yes_no() {
+    local question="$1"
+    local default="${2:-n}"
+    local response
+
+    if [ "$default" = "y" ]; then
+        printf "${YELLOW}?${NC} %s [Y/n]: " "$question"
+    else
+        printf "${YELLOW}?${NC} %s [y/N]: " "$question"
+    fi
+
+    read -r response
+    response=${response:-$default}
+
+    case "$response" in
+        [yY]|[yY][eE][sS]) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Multi-select menu with space to toggle, enter to confirm
+# Usage: multi_select "prompt" option1 option2 ...
+# Sets global MULTI_SELECT_RESULT with selected indices (0-based)
+MULTI_SELECT_RESULT=()
+multi_select() {
+    local prompt="$1"
+    shift
+    local options=("$@")
+    local count=${#options[@]}
+    local selected=()
+    local cursor=0
+
+    # Initialize all as unselected
+    for ((i=0; i<count; i++)); do
+        selected[$i]=0
+    done
+
+    # Hide cursor
+    tput civis 2>/dev/null || true
+
+    # Print header
+    echo
+    print_header "$prompt"
+    echo -e "  ${DIM}↑/↓ move • space toggle • a select all • enter confirm${NC}"
+    echo
+
+    # Draw initial menu
+    for ((i=0; i<count; i++)); do
+        if [ $i -eq $cursor ]; then
+            if [ ${selected[$i]} -eq 1 ]; then
+                echo -e "  ${CYAN}❯${NC} ${GREEN}◉${NC} ${BOLD}${options[$i]}${NC}"
+            else
+                echo -e "  ${CYAN}❯${NC} ○ ${BOLD}${options[$i]}${NC}"
+            fi
+        else
+            if [ ${selected[$i]} -eq 1 ]; then
+                echo -e "    ${GREEN}◉${NC} ${options[$i]}"
+            else
+                echo -e "    ○ ${options[$i]}"
+            fi
+        fi
+    done
+
+    # Read input
+    while true; do
+        # Read a single keypress
+        IFS= read -rsn1 key
+
+        # Handle escape sequences (arrow keys)
+        if [[ "$key" == $'\x1b' ]]; then
+            read -rsn2 key
+            case "$key" in
+                '[A') # Up arrow
+                    ((cursor > 0)) && ((cursor--))
+                    ;;
+                '[B') # Down arrow
+                    ((cursor < count - 1)) && ((cursor++))
+                    ;;
+            esac
+        elif [[ "$key" == ' ' ]]; then
+            # Toggle selection
+            if [ ${selected[$cursor]} -eq 1 ]; then
+                selected[$cursor]=0
+            else
+                selected[$cursor]=1
+            fi
+        elif [[ "$key" == 'a' || "$key" == 'A' ]]; then
+            # Select all / deselect all
+            local all_selected=1
+            for ((i=0; i<count; i++)); do
+                if [ ${selected[$i]} -eq 0 ]; then
+                    all_selected=0
+                    break
+                fi
+            done
+            for ((i=0; i<count; i++)); do
+                if [ $all_selected -eq 1 ]; then
+                    selected[$i]=0
+                else
+                    selected[$i]=1
+                fi
+            done
+        elif [[ "$key" == '' ]]; then
+            # Enter pressed — confirm
+            break
+        fi
+
+        # Redraw menu (move cursor up)
+        for ((i=0; i<count; i++)); do
+            tput cuu1 2>/dev/null || printf '\033[1A'
+            tput el 2>/dev/null || printf '\033[2K'
+        done
+
+        # Redraw
+        for ((i=0; i<count; i++)); do
+            if [ $i -eq $cursor ]; then
+                if [ ${selected[$i]} -eq 1 ]; then
+                    echo -e "  ${CYAN}❯${NC} ${GREEN}◉${NC} ${BOLD}${options[$i]}${NC}"
+                else
+                    echo -e "  ${CYAN}❯${NC} ○ ${BOLD}${options[$i]}${NC}"
+                fi
+            else
+                if [ ${selected[$i]} -eq 1 ]; then
+                    echo -e "    ${GREEN}◉${NC} ${options[$i]}"
+                else
+                    echo -e "    ○ ${options[$i]}"
+                fi
+            fi
+        done
+    done
+
+    # Show cursor again
+    tput cnorm 2>/dev/null || true
+
+    # Collect selected indices into global
+    MULTI_SELECT_RESULT=()
+    for ((i=0; i<count; i++)); do
+        if [ ${selected[$i]} -eq 1 ]; then
+            MULTI_SELECT_RESULT+=($i)
+        fi
+    done
+
+    echo
+}
+
+# Function to run metadata patcher
+run_metadata_patcher() {
+    local family_name="$1"
+    local extra_args="$2"
+
+    print_info "Running metadata patcher for ${BOLD}$family_name${NC}..."
+
+    local cmd="python3 font-metadata-patcher.py --src '$SRC_DIR' --family '$family_name' --output '$BUILD_DIR'"
+
+    if [ -n "$extra_args" ]; then
+        cmd="$cmd $extra_args"
+    fi
+
+    echo -e "  ${DIM}$cmd${NC}"
+
+    if eval "$cmd"; then
+        print_success "Metadata patcher completed for $family_name"
+        return 0
+    else
+        print_error "Metadata patcher failed for $family_name"
+        return 1
+    fi
+}
+
+# Function to run nerd fonts generator
+run_nerd_fonts_generator() {
+    local family_name="$1"
+
+    print_info "Running nerd fonts generator for ${BOLD}$family_name${NC}..."
+
+    if [ ! -f "./generate-nerd-fonts" ]; then
+        print_error "generate-nerd-fonts script not found"
+        return 1
+    fi
+
+    if [ ! -d "$BUILD_DIR/$family_name" ]; then
+        print_error "Build directory not found: $BUILD_DIR/$family_name"
+        return 1
+    fi
+
+    if "./generate-nerd-fonts" "$family_name"; then
+        print_success "Nerd fonts generator completed for $family_name"
+        return 0
+    else
+        print_error "Nerd fonts generator failed for $family_name"
+        return 1
+    fi
+}
+
+# Function to run small caps generator
+run_small_caps() {
+    local family_name="$1"
+    local source="$2"
+    local c2sc="$3"
+
+    print_info "Running small caps for ${BOLD}$family_name${NC}..."
+
+    local cmd="python3 add-small-caps.py --src '$BUILD_DIR/$family_name' --source '$source'"
+    if [ "$c2sc" != "true" ]; then
+        cmd="$cmd --no-c2sc"
+    fi
+
+    if eval "$cmd"; then
+        print_success "Small caps completed for $family_name"
+        return 0
+    else
+        print_error "Small caps failed for $family_name"
+        return 1
+    fi
+}
+
+# Function to run old-style figures generator
+run_old_style_figures() {
+    local family_name="$1"
+    local source="$2"
+
+    print_info "Running old-style figures for ${BOLD}$family_name${NC}..."
+
+    local cmd="python3 add-old-style-figures.py --src '$BUILD_DIR/$family_name' --source '$source'"
+
+    if eval "$cmd"; then
+        print_success "Old-style figures completed for $family_name"
+        return 0
+    else
+        print_error "Old-style figures failed for $family_name"
+        return 1
+    fi
+}
+
+# Ask user to choose a small cap glyph source
+ask_smcp_source() {
+    echo "  Small cap source:" >&2
+    echo "    1) phonetic  — Unicode small capitals (ᴀ ʙ ᴄ … ꞯ)" >&2
+    echo "    2) lowercase — use lowercase glyphs" >&2
+    echo "    3) capital   — use uppercase glyphs" >&2
+    printf "${YELLOW}?${NC} Source [1/2/3] (default: 1): " >&2
+    read -r response
+    case "${response:-1}" in
+        2) echo "lowercase" ;;
+        3) echo "capital" ;;
+        *) echo "phonetic" ;;
+    esac
+}
+
+# Ask user to choose an old-style figure glyph source
+ask_onum_source() {
+    echo "  Old-style figure source:" >&2
+    echo "    1) circled     — ⓿①②③④⑤⑥⑦⑧⑨" >&2
+    echo "    2) superscript — ⁰¹²³⁴⁵⁶⁷⁸⁹" >&2
+    echo "    3) subscript   — ₀₁₂₃₄₅₆₇₈₉" >&2
+    echo "    4) lining      — same as regular digits" >&2
+    printf "${YELLOW}?${NC} Source [1/2/3/4] (default: 1): " >&2
+    read -r response
+    case "${response:-1}" in
+        2) echo "superscript" ;;
+        3) echo "subscript" ;;
+        4) echo "lining" ;;
+        *) echo "circled" ;;
+    esac
+}
+
+# Get current version of a font family from build folder
+# Usage: get_family_version "picosans"  → prints version string (e.g. "0.2")
+get_family_version() {
+    local family="$1"
+    python3 -c "
+import fontforge, sys, os
+fdir = os.path.join('$BUILD_DIR', '$family')
+if not os.path.isdir(fdir):
+    sys.exit(0)
+for fname in sorted(os.listdir(fdir)):
+    if fname.endswith(('.ttf', '.otf')):
+        f = fontforge.open(os.path.join(fdir, fname))
+        print(f.version or '')
+        f.close()
+        sys.exit(0)
+" 2>/dev/null
+}
+
+# Compute bumped version for a family based on VERSION_STRATEGY
+# Usage: compute_version "picosans"  → prints --version flag or empty string
+compute_version_flag() {
+    local family="$1"
+    local current_version
+    current_version=$(get_family_version "$family")
+
+    case "$VERSION_STRATEGY" in
+        1|2|3)
+            if [ -z "$current_version" ]; then
+                return
+            fi
+            local major minor patch
+            IFS='.' read -r major minor patch <<< "$current_version"
+            major=${major:-0}
+            minor=${minor:-0}
+            patch=${patch:-0}
+            local new_version=""
+            case "$VERSION_STRATEGY" in
+                1) new_version="$major.$minor.$((patch + 1))" ;;
+                2) new_version="$major.$((minor + 1)).0" ;;
+                3) new_version="$((major + 1)).0.0" ;;
+            esac
+            echo "--version '$new_version'"
+            print_info "$family: $current_version → $new_version" >&2
+            ;;
+        4)
+            if [ -n "$VERSION_CUSTOM" ]; then
+                echo "--version '$VERSION_CUSTOM'"
+            fi
+            ;;
+        *)
+            # keep — no flag
+            ;;
+    esac
+}
+
+# Global version strategy (set by get_metadata_options)
+VERSION_STRATEGY="5"
+VERSION_CUSTOM=""
+
+# Gather metadata patcher options (stores in global METADATA_OPTIONS)
+get_metadata_options() {
+    local options=""
+
+    echo
+    print_header "Metadata Options"
+
+    if ask_yes_no "Use lowercase font names?" "y"; then
+        options="$options --lowercase"
+    fi
+
+    if ask_yes_no "Set font type to monospace?" "y"; then
+        options="$options --type monospace"
+    elif ask_yes_no "Set font type to sans serif?"; then
+        options="$options --type sans"
+    elif ask_yes_no "Set font type to serif?"; then
+        options="$options --type serif"
+    fi
+
+    # Version bump strategy — actual version computed per-family at build time
+    echo
+    print_header "Version"
+    echo "    1) patch bump"
+    echo "    2) minor bump"
+    echo "    3) major bump"
+    echo "    4) custom (same for all)"
+    echo "    5) keep"
+    printf "${YELLOW}?${NC} Version [1/2/3/4/5] (default: 5): "
+    read -r ver_choice
+    VERSION_STRATEGY="${ver_choice:-5}"
+    VERSION_CUSTOM=""
+    if [ "$VERSION_STRATEGY" = "4" ]; then
+        printf "${YELLOW}?${NC} Version: "
+        read -r VERSION_CUSTOM
+    fi
+
+    printf "${YELLOW}?${NC} Output extension (ttf/otf, enter to keep): "
+    read -r extension
+    if [ -n "$extension" ]; then
+        options="$options --extension '$extension'"
+    fi
+
+    printf "${YELLOW}?${NC} Designer URL (enter to skip): "
+    read -r designer_url
+    if [ -n "$designer_url" ]; then
+        options="$options --designerurl '$designer_url'"
+    fi
+
+    printf "${YELLOW}?${NC} License URL (enter to skip): "
+    read -r license_url
+    if [ -n "$license_url" ]; then
+        options="$options --licenseurl '$license_url'"
+    fi
+
+    printf "${YELLOW}?${NC} License/copyright text (enter to skip): "
+    read -r license_text
+    if [ -n "$license_text" ]; then
+        options="$options --license '$license_text'"
+    fi
+
+    if ask_yes_no "Enable debug logging?"; then
+        options="$options --debug"
+    fi
+
+    METADATA_OPTIONS="$options"
+}
+
+# Main function
+main() {
+    echo -e "${CYAN}"
+    echo "╔══════════════════════════════════════════════════════════════╗"
+    echo "║                  Interactive Font Generator                  ║"
+    echo "║          Metadata Patcher + Nerd Fonts Generator             ║"
+    echo "║                       quanta-strike                         ║"
+    echo "╚══════════════════════════════════════════════════════════════╝"
+    echo -e "${NC}"
+
+    # Check if source directory exists
+    if [ ! -d "$SRC_DIR" ]; then
+        print_error "Source directory not found: $SRC_DIR"
+        exit 1
+    fi
+
+    # Check if font-metadata-patcher.py exists
+    if [ ! -f "font-metadata-patcher.py" ]; then
+        print_error "font-metadata-patcher.py not found in current directory"
+        exit 1
+    fi
+
+    # Find all family directories
+    local family_names=()
+    for family_dir in $(find "$SRC_DIR" -mindepth 1 -maxdepth 1 -type d | sort); do
+        family_names+=("$(basename "$family_dir")")
+    done
+
+    if [ ${#family_names[@]} -eq 0 ]; then
+        print_error "No font family directories found in $SRC_DIR"
+        exit 1
+    fi
+
+    # ─── Step 1: Select font families ─────────────────────────────────
+    multi_select "Select font families to build" "${family_names[@]}"
+    local selected_indices=("${MULTI_SELECT_RESULT[@]}")
+
+    if [ ${#selected_indices[@]} -eq 0 ]; then
+        print_warning "No families selected. Exiting."
+        exit 0
+    fi
+
+    # Show what was selected
+    local selected_families=()
+    for idx in "${selected_indices[@]}"; do
+        selected_families+=("${family_names[$idx]}")
+    done
+    print_info "Selected: ${selected_families[*]}"
+
+    # ─── Step 2: Configure metadata options ───────────────────────────
+    get_metadata_options
+    echo
+    print_info "Options:${DIM}$METADATA_OPTIONS${NC}"
+
+    # ─── Step 3: Optional features ───────────────────────────────────
+    echo
+    print_header "Optional Features"
+
+    local do_small_caps=false
+    local smcp_source="phonetic"
+    local smcp_c2sc=true
+    if ask_yes_no "Add small caps (smcp/c2sc)?" "y"; then
+        do_small_caps=true
+        smcp_source=$(ask_smcp_source)
+        if ! ask_yes_no "Also add c2sc (uppercase → small caps)?" "y"; then
+            smcp_c2sc=false
+        fi
+    fi
+
+    local do_onum=false
+    local onum_source="circled"
+    if ask_yes_no "Add old-style figures (onum)?" "y"; then
+        do_onum=true
+        onum_source=$(ask_onum_source)
+    fi
+
+    local do_nerd=false
+    if ask_yes_no "Generate nerd font variants?" "y"; then
+        do_nerd=true
+    fi
+
+    # ─── Step 4: Process ──────────────────────────────────────────────
+    echo
+    echo "────────────────────────────────────────────────────────────────"
+    echo
+
+    local processed_count=0
+    local smcp_count=0
+    local onum_count=0
+    local nerd_count=0
+
+    for family_name in "${selected_families[@]}"; do
+        print_header "Building: $family_name"
+        echo
+
+        # Compute per-family version flag
+        local version_flag=""
+        version_flag=$(compute_version_flag "$family_name")
+
+        # Run metadata patcher
+        if run_metadata_patcher "$family_name" "$METADATA_OPTIONS $version_flag"; then
+            ((processed_count++))
+
+            # Small caps
+            if [ "$do_small_caps" = true ]; then
+                echo
+                if run_small_caps "$family_name" "$smcp_source" "$smcp_c2sc"; then
+                    ((smcp_count++))
+                fi
+            fi
+
+            # Old-style figures
+            if [ "$do_onum" = true ]; then
+                echo
+                if run_old_style_figures "$family_name" "$onum_source"; then
+                    ((onum_count++))
+                fi
+            fi
+
+            # Nerd fonts
+            if [ "$do_nerd" = true ]; then
+                echo
+                if run_nerd_fonts_generator "$family_name"; then
+                    ((nerd_count++))
+                fi
+            fi
+        fi
+
+        echo
+        echo "────────────────────────────────────────────────────────────────"
+        echo
+    done
+
+    # ─── Summary ──────────────────────────────────────────────────────
+    echo
+    print_header "Done!"
+    print_success "Processed $processed_count font families"
+    [ $smcp_count -gt 0 ] && print_success "Added small caps to $smcp_count families"
+    [ $onum_count -gt 0 ] && print_success "Added old-style figures to $onum_count families"
+    [ $nerd_count -gt 0 ] && print_success "Generated $nerd_count nerd font variants"
+
+    if [ $processed_count -gt 0 ]; then
+        echo
+        print_info "Output: $BUILD_DIR/"
+    fi
+}
+
+# Check for help flag
+if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+    echo "Interactive Font Generator"
+    echo
+    echo "Usage: $0"
+    echo
+    echo "Flow:"
+    echo "  1. Select font families (space to toggle, a to select all)"
+    echo "  2. Configure metadata options (applied to all selected)"
+    echo "  3. Choose optional features (small caps, old-style figures, nerd fonts)"
+    echo "  4. Build!"
+    echo
+    echo "Requirements:"
+    echo "  - font-metadata-patcher.py in current directory"
+    echo "  - FontForge with Python bindings (brew install fontforge)"
+    echo "  - generate-nerd-fonts script (for nerd font variants)"
+    echo
+    exit 0
+fi
+
+# Run main function
+main

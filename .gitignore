@@ -1,2 +1,9 @@
 .DS_Store
 **/.DS_Store
+
+# Python caches
+__pycache__/
+*.pyc
+
+# Build output (regenerated from src/ by the pipeline)
+/build/

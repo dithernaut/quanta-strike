@@ -1,0 +1,98 @@
+#!/bin/bash
+
+# Check if typeface name is provided
+if [ -z "$1" ]; then
+    echo "Error: Please provide the typeface name as an argument"
+    echo "Usage: $0 <typeface-name>"
+    echo "Example: $0 quanta-strike-8"
+    exit 1
+fi
+
+TYPEFACE_NAME="$1"
+
+# Directory containing the original fonts
+FONT_DIR="./build/$TYPEFACE_NAME"
+# Directory for output — its own family, suffixed "-nerd"
+OUTPUT_DIR="./build/${TYPEFACE_NAME}-nerd"
+
+# Check if font directory exists
+if [ ! -d "$FONT_DIR" ]; then
+    echo "Error: Font directory not found at $FONT_DIR"
+    exit 1
+fi
+
+# Check if font-patcher exists
+if [ ! -f "./patcher/font-patcher" ]; then
+    echo "Error: font-patcher script not found in patcher directory"
+    exit 1
+fi
+
+# Create output directory if it doesn't exist
+mkdir -p "$OUTPUT_DIR"
+
+# Process each variant based on filenames
+echo "Found variants:"
+ls "$FONT_DIR"/*.ttf 2>/dev/null | while read -r font_file; do
+    filename=$(basename "$font_file")
+    base_name="${filename%.*}"
+
+    # Extract variant from filename (e.g., quanta-strike-8-regular.ttf -> regular)
+    variant=$(echo "$base_name" | sed "s/$TYPEFACE_NAME-//")
+    echo "Processing variant: $variant"
+
+    echo "Processing $filename..."
+
+    # Snapshot existing outputs so we can detect the newly written file afterwards,
+    # since font-patcher's output filename differs between versions.
+    before=$(ls "$OUTPUT_DIR"/*.ttf 2>/dev/null)
+
+    # Run font-patcher with the specified options
+    fontforge --script ./patcher/font-patcher \
+        --careful \
+        --mono \
+        -q \
+        --simple \
+        --complete \
+        --makegroups 0 \
+        --outputdir "$OUTPUT_DIR" \
+        "$font_file"
+
+    if [ $? -eq 0 ]; then
+        # Our desired output name / family: "<typeface>-nerd"
+        output_name="${TYPEFACE_NAME}-nerd-$variant.ttf"
+        desired="$OUTPUT_DIR/$output_name"
+
+        if [ ! -f "$desired" ]; then
+            # Locate whatever .ttf font-patcher wrote (name varies by version)
+            patched=""
+            legacy="$OUTPUT_DIR/${TYPEFACE_NAME}NerdFontMono-$variant.ttf"
+            if [ -f "$legacy" ]; then
+                patched="$legacy"
+            else
+                for f in "$OUTPUT_DIR"/*.ttf; do
+                    [ -f "$f" ] || continue
+                    case "$before" in
+                        *"$f"*) : ;;            # already existed before this run
+                        *) patched="$f" ;;      # newly created
+                    esac
+                done
+            fi
+            if [ -n "$patched" ] && [ -f "$patched" ] && [ "$patched" != "$desired" ]; then
+                mv "$patched" "$desired"
+            fi
+        fi
+
+        if [ -f "$desired" ]; then
+            # Give the Nerd Font its own clean family name "<typeface>-nerd",
+            # preserving copyright / version / license carried over by the patcher.
+            fontforge -lang=py -script ./rename-family.py "$desired" "${TYPEFACE_NAME}-nerd" "$variant" >/dev/null 2>&1
+            echo "Successfully generated $output_name"
+        else
+            echo "Could not locate patched output for $filename in $OUTPUT_DIR"
+        fi
+    else
+        echo "Error processing $filename"
+    fi
+done
+
+echo "All fonts have been processed!"
