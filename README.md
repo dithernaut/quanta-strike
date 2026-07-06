@@ -1,6 +1,5 @@
 # quanta-strike
 
-A pixel typeface authored with the [yal.cc pixel-font tool](https://yal.cc/tools/pixel-font/),
 shipped as four **strikes** — `quanta-strike-8`, `-12`, `-16`, `-20` — plus a
 build pipeline that adds proper metadata and derived OpenType features.
 
@@ -8,41 +7,36 @@ build pipeline that adds proper metadata and derived OpenType features.
 
 Each strike is tuned for one rendering size:
 
-| strike | use at `font-size` |
-|--------|--------------------|
-| `quanta-strike-8`  | `8px`  |
-| `quanta-strike-12` | `12px` |
-| `quanta-strike-16` | `16px` |
-| `quanta-strike-20` | `20px` |
+| strike             | use at `font-size` |
+| ------------------ | ------------------ |
+| `quanta-strike-8`  | `8px`              |
+| `quanta-strike-12` | `12px`             |
+| `quanta-strike-16` | `16px`             |
+| `quanta-strike-20` | `20px`             |
 
 They are **separate font families** (not weights/styles of one family) so each is
 trivial to target in CSS.
 
-### The pixel-alignment guarantee
-
-Every strike uses a fixed grid: **1 source pixel = 128 font units**, and the em is
-an exact whole number of pixels (`em = strike# × 128`). Rendered at its nominal
-size, one pixel is therefore exactly **1 CSS px**:
-
-```
-pixel size in CSS px = font-size × 128 / em = N × 128 / (N × 128) = 1.0
-```
-
-So a strike used at its size lands perfectly on the device pixel grid, and one
-pixel of `quanta-strike-8` @ 8px is the same size as one pixel of
-`quanta-strike-12` @ 12px — they align.
-
-**Because of this, the pipeline never alters vertical metrics** (em / ascent /
-descent / line gap). It only rewrites naming/metadata and adds glyph features.
-Changing the em (e.g. "tightening" the line height) would push pixels off the
-grid and blur them, so it is deliberately not done here.
-
 ```css
-@font-face { font-family: "quanta-strike-8";  src: url("quanta-strike-8-regular.ttf");  }
-@font-face { font-family: "quanta-strike-12"; src: url("quanta-strike-12-regular.ttf"); }
+@font-face {
+  font-family: "quanta-strike-8";
+  src: url("quanta-strike-8-regular.ttf");
+}
+@font-face {
+  font-family: "quanta-strike-12";
+  src: url("quanta-strike-12-regular.ttf");
+}
 
-.qs-8  { font-family: "quanta-strike-8";  font-size: 8px;  line-height: 1; }
-.qs-12 { font-family: "quanta-strike-12"; font-size: 12px; line-height: 1; }
+.qs-8 {
+  font-family: "quanta-strike-8";
+  font-size: 8px;
+  line-height: 1;
+}
+.qs-12 {
+  font-family: "quanta-strike-12";
+  font-size: 12px;
+  line-height: 1;
+}
 ```
 
 ## Layout
@@ -96,14 +90,14 @@ python3 add-old-style-figures.py --src build --source circled   # or: superscrip
 
 ## Scripts
 
-| script | does |
-|--------|------|
+| script                     | does                                                                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `font-metadata-patcher.py` | Sets family/style names, OS-2, weight/width, version, copyright & URLs. **Never touches metrics** (preserves pixel alignment). |
-| `add-small-caps.py`        | Adds `smcp`/`c2sc` OpenType features, sourced from phonetic small-caps, lowercase, or capital glyphs. |
-| `add-old-style-figures.py` | Adds the `onum` feature, mapping digits to circled / superscript / subscript figures. |
-| `generate-nerd-fonts`      | Patches a built strike with Nerd Font icons → its own `<strike>-nerd` family. |
-| `generate`                 | Runs the Nerd Font patcher over every built strike. |
-| `rename-family.py`         | Helper: sets a font's family/style naming while preserving other metadata. |
+| `add-small-caps.py`        | Adds `smcp`/`c2sc` OpenType features, sourced from phonetic small-caps, lowercase, or capital glyphs.                          |
+| `add-old-style-figures.py` | Adds the `onum` feature, mapping digits to circled / superscript / subscript figures.                                          |
+| `generate-nerd-fonts`      | Patches a built strike with Nerd Font icons → its own `<strike>-nerd` family.                                                  |
+| `generate`                 | Runs the Nerd Font patcher over every built strike.                                                                            |
+| `rename-family.py`         | Helper: sets a font's family/style naming while preserving other metadata.                                                     |
 
 ## Features
 
