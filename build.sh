@@ -21,6 +21,12 @@ BUILD_DIR="./build"
 TTF_DIR="$BUILD_DIR/ttf"
 TTF_GROUP_DIR="$TTF_DIR/quanta-strike"
 
+# Staged sources. png-to-ttf.py builds each strike's TTF in here, mirroring the
+# src/<family>/<style>/ layout the metadata patcher expects, so that src/ only
+# ever holds the real sources (PNG + JSON) and never a build artifact.
+# Lives under build/ — wiped at the start of every run, and already gitignored.
+STAGE_DIR="$BUILD_DIR/tmp/src"
+
 # Global variable to store metadata options
 METADATA_OPTIONS=""
 
@@ -191,6 +197,56 @@ multi_select() {
     echo
 }
 
+# Build each strike's TTF from its yal source (PNG + JSON) — the step that used
+# to be done by hand in the yal web tool. The TTF is a build artifact, so it goes
+# to $STAGE_DIR rather than back into src/; everything downstream reads it from
+# there. A strike with no PNG+JSON falls back to a prebuilt TTF in src/, which is
+# copied into the staging area so the patcher sees one uniform layout.
+# Usage: run_png_to_ttf family1 family2 ...
+run_png_to_ttf() {
+    local families=("$@")
+
+    print_info "Building source TTFs from PNG + JSON → ${DIM}$STAGE_DIR${NC}"
+
+    rm -rf "$STAGE_DIR"
+
+    local built=0
+    local reused=0
+    for family_name in "${families[@]}"; do
+        local json="$SRC_DIR/$family_name/regular/$family_name.json"
+        local png="$SRC_DIR/$family_name/regular/$family_name.png"
+        local prebuilt="$SRC_DIR/$family_name/regular/$family_name.ttf"
+        local stage="$STAGE_DIR/$family_name/regular"
+
+        mkdir -p "$stage"
+
+        if [ -f "./png-to-ttf.py" ] && [ -f "$json" ] && [ -f "$png" ]; then
+            if python3 png-to-ttf.py "$json" "$stage"; then
+                built=$((built + 1))
+            else
+                print_error "png-to-ttf failed for $family_name"
+                return 1
+            fi
+        elif [ -f "$prebuilt" ]; then
+            # No source pair (or no converter) — fall back to the checked-in TTF.
+            cp "$prebuilt" "$stage/"
+            print_warning "$family_name: no PNG+JSON source — using the existing TTF"
+            reused=$((reused + 1))
+        else
+            print_error "$family_name: no PNG+JSON source and no TTF to fall back on"
+            return 1
+        fi
+    done
+
+    if [ $built -gt 0 ]; then
+        print_success "Built $built source TTF(s) from PNG + JSON"
+    fi
+    if [ $reused -gt 0 ]; then
+        print_success "Reused $reused prebuilt TTF(s)"
+    fi
+    return 0
+}
+
 # Function to run metadata patcher
 run_metadata_patcher() {
     local family_name="$1"
@@ -198,7 +254,8 @@ run_metadata_patcher() {
 
     print_info "Running metadata patcher for ${BOLD}$family_name${NC}..."
 
-    local cmd="python3 font-metadata-patcher.py --src '$SRC_DIR' --family '$family_name' --output '$TTF_GROUP_DIR' --flat"
+    # Reads the staged TTF that png-to-ttf.py just built, not src/.
+    local cmd="python3 font-metadata-patcher.py --src '$STAGE_DIR' --family '$family_name' --output '$TTF_GROUP_DIR' --flat"
 
     if [ -n "$extra_args" ]; then
         cmd="$cmd $extra_args"
@@ -576,10 +633,18 @@ main() {
     done
     print_info "Selected: ${selected_families[*]}"
 
+    # ─── Step 1a: Build source TTFs from the yal PNG + JSON sources ────
+    echo
+    if ! run_png_to_ttf "${selected_families[@]}"; then
+        print_error "Could not build source TTFs — aborting."
+        exit 1
+    fi
+
     # ─── Step 1b: Fail fast — source strikes must be on the pixel grid ─
+    # Checks the freshly staged TTFs, i.e. what the build will actually consume.
     local src_targets=()
     for fam in "${selected_families[@]}"; do
-        src_targets+=("$SRC_DIR/$fam")
+        src_targets+=("$STAGE_DIR/$fam")
     done
     echo
     if ! run_verify "source" "${src_targets[@]}"; then
@@ -737,11 +802,14 @@ if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
     echo
     echo "Flow:"
     echo "  1. Select font families (space to toggle, a to select all)"
+    echo "  1a. Build source TTFs from each strike's PNG + JSON into build/tmp/src"
+    echo "      (png-to-ttf.py — src/ keeps only the PNG + JSON)"
     echo "  2. Configure metadata options (applied to all selected)"
     echo "  3. Choose optional features (small caps, old-style figures, nerd fonts, WOFF2)"
     echo "  4. Build base TTF (+ WOFF2), then Nerd Fonts last (selected families only)"
     echo
     echo "Requirements:"
+    echo "  - png-to-ttf.py (builds each strike's TTF from its PNG + JSON)"
     echo "  - font-metadata-patcher.py in current directory"
     echo "  - FontForge with Python bindings (brew install fontforge)"
     echo "  - generate-nerd-fonts script (for nerd font variants)"

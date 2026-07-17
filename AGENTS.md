@@ -9,7 +9,9 @@ before doing anything.
   `-14`, `-16`, `-18`, `-20` (more may exist). Each strike is its **own font family**
   named `quanta-strike-N`. They are NOT weights/styles of one family.
 - Source art comes from yal.cc (vendored in `pixelfont/`): each strike is a PNG + JSON
-  in `src/quanta-strike-N/`, from which a TTF is produced, then the pipeline builds it.
+  in `src/quanta-strike-N/`. `png-to-ttf.py` turns that pair into the TTF, so the TTF
+  is a **build artifact** — the PNG + JSON are the only real source. (Historically the
+  TTF was made by hand in the yal web tool; that step is now scripted.)
 
 ## THE hard invariant (never break this)
 - **1 pixel = 128 font units**, always. Glyph coordinates are multiples of 128.
@@ -37,8 +39,22 @@ before doing anything.
   ascent line. Everything else follows from `N` and `D`.
 
 ## Build pipeline (`build.sh` orchestrates; scripts run via FontForge python)
-Order: `metadata → small caps → old-style figures → anchor-em → (optional scale) →
-guard → WOFF2 → Nerd`.
+Order: `png-to-ttf → metadata → small caps → old-style figures → anchor-em →
+(optional scale) → guard → WOFF2 → Nerd`.
+- **png-to-ttf.py** — builds each strike's TTF from its PNG + JSON, replacing the old
+  manual "save a TTF out of yal" step. A reimplementation of the vendored
+  `pixelfont/script.js`, verified bit-identical to yal's own output on every strike
+  (same contours, widths, cmap). Reads the geometry from the JSON, so the strike's cell
+  grid / baseline / overrides are honoured; ink = `alpha >= 128 and 3r+5g+b <= 1024`
+  (yal's "black" test) — so light/transparent alignment guides in the art stay out of
+  the font, but a DARK guide would become ink. Emits 1 px = 128 units; never rescales.
+  - **Never writes into `src/`.** build.sh stages the TTFs in **`build/tmp/src/`**,
+    mirroring the `<family>/<style>/` layout the patcher expects; that dir is wiped at
+    the start of every run and is gitignored with the rest of `build/`. `src/` holds the
+    PNG + JSON only. Run standalone as `png-to-ttf.py <json> <out-dir>`; with no
+    out-dir it writes next to the JSON, so pass one unless you want it in src/.
+  - A strike with no PNG+JSON falls back to a prebuilt `src/<family>/regular/<family>.ttf`
+    (copied into the staging dir); with neither, the build fails loudly.
 - **font-metadata-patcher.py** — names/version/license/OS2 class etc. NEVER touches
   vertical metrics (keeps the pixel grid). `--flat` writes all strikes into one
   `build/ttf/quanta-strike/` folder.
