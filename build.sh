@@ -197,8 +197,8 @@ multi_select() {
     echo
 }
 
-# Build each strike's TTF from its yal source (PNG + JSON) — the step that used
-# to be done by hand in the yal web tool. The TTF is a build artifact, so it goes
+# Build each strike's TTF from its source pair (PNG + JSON) — the step that used
+# to be done by hand as an export. The TTF is a build artifact, so it goes
 # to $STAGE_DIR rather than back into src/; everything downstream reads it from
 # there. A strike with no PNG+JSON falls back to a prebuilt TTF in src/, which is
 # copied into the staging area so the patcher sees one uniform layout.
@@ -633,7 +633,7 @@ main() {
     done
     print_info "Selected: ${selected_families[*]}"
 
-    # ─── Step 1a: Build source TTFs from the yal PNG + JSON sources ────
+    # ─── Step 1a: Build source TTFs from the PNG + JSON sources ───────
     echo
     if ! run_png_to_ttf "${selected_families[@]}"; then
         print_error "Could not build source TTFs — aborting."

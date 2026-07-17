@@ -14,7 +14,7 @@ the 16) so the accents get real room: the extra row(s) hang above the em.
   use_typo_metrics = True
   glyph outlines untouched              -> 1 pixel stays 128 units
 
-Whatever em yal exports (N*128 already, or the taller canvas height), this
+Whatever em the source exports (N*128 already, or the taller canvas height), this
 re-anchors it to N*128 and captures the overshoot in the line metrics.
 
 Usage:

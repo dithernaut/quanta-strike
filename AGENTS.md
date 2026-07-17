@@ -1,6 +1,6 @@
 # quanta-strike — pixel font build pipeline
 
-quanta-strike is a pixel font from the yal.cc pixel-font tool. The rules below were
+quanta-strike is a pixel font built from drawn pixel sheets. The rules below were
 worked out carefully and are non-negotiable unless the user says otherwise. Read this
 before doing anything.
 
@@ -8,10 +8,10 @@ before doing anything.
 - A family of **strikes** — one design per target size: `quanta-strike-6`, `-10`, `-12`,
   `-14`, `-16`, `-18`, `-20` (more may exist). Each strike is its **own font family**
   named `quanta-strike-N`. They are NOT weights/styles of one family.
-- Source art comes from yal.cc (vendored in `pixelfont/`): each strike is a PNG + JSON
-  in `src/quanta-strike-N/`. `png-to-ttf.py` turns that pair into the TTF, so the TTF
-  is a **build artifact** — the PNG + JSON are the only real source. (Historically the
-  TTF was made by hand in the yal web tool; that step is now scripted.)
+- Source art is a drawn pixel sheet: each strike is a PNG + JSON in
+  `src/quanta-strike-N/`. `png-to-ttf.py` turns that pair into the TTF, so the TTF is a
+  **build artifact** — the PNG + JSON are the only real source. (The TTF used to be
+  exported by hand; that step is now scripted, and the build is self-contained.)
 
 ## THE hard invariant (never break this)
 - **1 pixel = 128 font units**, always. Glyph coordinates are multiples of 128.
@@ -42,12 +42,16 @@ before doing anything.
 Order: `png-to-ttf → metadata → small caps → old-style figures → anchor-em →
 (optional scale) → guard → WOFF2 → Nerd`.
 - **png-to-ttf.py** — builds each strike's TTF from its PNG + JSON, replacing the old
-  manual "save a TTF out of yal" step. A reimplementation of the vendored
-  `pixelfont/script.js`, verified bit-identical to yal's own output on every strike
-  (same contours, widths, cmap). Reads the geometry from the JSON, so the strike's cell
+  manual export step. Verified bit-identical to the reference TTFs on every strike —
+  same contours, widths, cmap. Reads the geometry from the JSON, so the strike's cell
   grid / baseline / overrides are honoured; ink = `alpha >= 128 and 3r+5g+b <= 1024`
-  (yal's "black" test) — so light/transparent alignment guides in the art stay out of
-  the font, but a DARK guide would become ink. Emits 1 px = 128 units; never rescales.
+  (a luminance threshold, NOT "is it black") — so light/transparent alignment guides in
+  the art stay out of the font, but a DARK guide would become ink. Emits 1 px = 128
+  units; never rescales. Standalone — the script's header documents every rule.
+  - It implements exactly what these sources use (`contour-type: pixel`, mono advance,
+    `hide`). Anything else — `contour-type: smart`, the `kern`/`left`/`right`/`ignore`/
+    `default_char` overrides, non-mono — is NOT implemented; it errors or warns rather
+    than guessing. 
   - **Never writes into `src/`.** build.sh stages the TTFs in **`build/tmp/src/`**,
     mirroring the `<family>/<style>/` layout the patcher expects; that dir is wiped at
     the start of every run and is gitignored with the rest of `build/`. `src/` holds the
@@ -62,8 +66,8 @@ Order: `png-to-ttf → metadata → small caps → old-style figures → anchor-
   features from existing glyphs (sources: phonetic/lowercase/capital; circled/super/sub).
 - **anchor-em.py** — the **pixel-perfect step (DEFAULT)**. Sets `em = N×128`,
   `descent = measured descender`, `ascent = the rest`; sets hhea/OS2 line metrics to the
-  FULL ink extent so overshooting accents don't clip. Re-anchors whatever em yal exported
-  (N×128 or the full canvas) back to N×128. Glyphs never rescaled.
+  FULL ink extent so overshooting accents don't clip. Re-anchors whatever em the source
+  exported (N×128 or the full canvas) back to N×128. Glyphs never rescaled.
 - **pixel-scale.py** — OPTIONAL uniform scale-up applied ON TOP of anchor (default
   factor 1 = no-op). Shrinks every em by one shared factor so the family renders bigger
   while the pixel stays identical across strikes. Non-integer factor → slightly soft
@@ -90,12 +94,18 @@ Always anchors pixel-perfect first, then prompts `Scale factor on top [default 1
 - Fonts ship with tight ink-based line metrics (line-height ~1.06–1.33, larger on small
   strikes). Set `line-height` explicitly for uniform leading.
 
-## yal source format (`pixelfont/`, `src/*/*.json`)
-Self-contained client-side app (`index.html` + `script.js` + `fonthx-assets.js`) that
-turns PNG + JSON into a TTF in the browser. JSON keys of note: `in-glyphs` (rows of
-chars = PNG grid order), `glyph-width`/`glyph-height` (cell size), `glyph-ofs-x/y`,
-`glyph-baseline` (baseline row in cell), `font-px-size` (= 128 units/pixel),
-`font-em-square`, `contour-type: pixel`, `overrides` (e.g. `hide \s`).
+## Pixel-sheet source format (`src/*/*.json`)
+The JSON sitting next to each PNG; `png-to-ttf.py` is the only thing that reads it.
+Keys of note: `in-glyphs` (rows of chars = PNG grid order, indexed by
+CODEPOINT — astral chars take one cell), `glyph-width`/`glyph-height` (cell size),
+`glyph-ofs-x/y` (grid origin), `glyph-sep-x/y` (gap between cells), `glyph-base-x`
+(x-origin within the cell), `glyph-baseline` (baseline row in cell), `font-px-size`
+(= 128 units/pixel), `font-em-square`, `contour-type: pixel`, `font-is-mono`,
+`overrides` (e.g. `hide \s` = keep the advance, drop the ink).
+- Cell (row, col) is at `(ofs_x + col*(width+sep_x), ofs_y + row*(height+sep_y))`.
+  The PNG canvas is usually BIGGER than the grid — the slack is ignored, so don't
+  expect image height to divide by the row count.
+- Only the FIRST space in the whole sheet becomes a glyph; later ones just leave a gap.
 
 ## Working conventions
 - **NEVER** git commit / push / merge / stage or open PRs. Leave the working tree dirty;

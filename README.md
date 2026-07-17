@@ -1,8 +1,8 @@
 # quanta-strike
 
-A pixel typeface authored with the [yal.cc pixel-font tool](https://yal.cc/tools/pixel-font/),
-shipped as a set of **strikes** — `quanta-strike-8`, `-12`, `-16`, `-20`, `-24` — plus
-a build pipeline that adds proper metadata and derived OpenType features.
+A pixel typeface drawn as pixel sheets and compiled straight to fonts, shipped as a
+set of **strikes** — `quanta-strike-8`, `-12`, `-16`, `-20`, `-24` — plus a build
+pipeline that adds proper metadata and derived OpenType features.
 
 ## What a "strike" is
 
@@ -49,11 +49,12 @@ grid and blur them, so it is deliberately not done here.
 ## Layout
 
 ```
-src/                              # authored fonts (input) — never modified by the build
-  quanta-strike-8/regular/quanta-strike-8.{json,png,ttf}
+src/                              # authored art (input) — never modified by the build
+  quanta-strike-8/regular/quanta-strike-8.{json,png}
   quanta-strike-12/...
   ...
 build/                            # generated output (git-ignored)
+  tmp/src/                        #   TTFs compiled from the PNG + JSON (staging)
   ttf/
     quanta-strike/                #   all base strikes, one folder
     quanta-strike-nerd/           #   Nerd Font-patched strikes
@@ -82,9 +83,13 @@ WOFF2).
 ### Manual / scripted
 
 ```bash
+# 0) Compile each strike's PNG + JSON into a TTF (src/ stays art-only)
+python3 png-to-ttf.py src/quanta-strike-8/regular/quanta-strike-8.json \
+    build/tmp/src/quanta-strike-8/regular
+
 # 1) Metadata — all strikes into one folder: build/ttf/quanta-strike/
 fontforge -lang=py -script font-metadata-patcher.py \
-    --src src --output build/ttf/quanta-strike --flat \
+    --src build/tmp/src --output build/ttf/quanta-strike --flat \
     --lowercase --type monospace \
     --license "(c) 2026 dithernaut" \
     --designerurl "https://dithernaut.com"
@@ -110,6 +115,7 @@ fontforge -lang=py -script convert-woff2.py build/ttf build/woff2 --include-nerd
 
 | script | does |
 |--------|------|
+| `png-to-ttf.py`            | Compiles a strike's PNG + JSON pixel sheet into a TTF (1 pixel = 128 units). The TTF is a build artifact, so `src/` only holds the art. |
 | `font-metadata-patcher.py` | Sets family/style names, OS-2, weight/width, version, copyright & URLs. `--flat` writes all strikes into one folder. **Never touches metrics** (preserves pixel alignment). |
 | `add-small-caps.py`        | Adds `smcp`/`c2sc` OpenType features, sourced from phonetic small-caps, lowercase, or capital glyphs. |
 | `add-old-style-figures.py` | Adds the `onum` feature, mapping digits to circled / superscript / subscript figures. |
@@ -125,3 +131,6 @@ fontforge -lang=py -script convert-woff2.py build/ttf build/woff2 --include-nerd
 - **Old-style figures** — `onum`, built from the font's own alternate digit glyphs.
 - **Nerd Fonts** — icon-patched variants for terminal use.
 - **WOFF2** — compact web fonts (base strikes by default; add `--include-nerd` for the icon variants).
+
+## Thanks
+Thanks to [yal.cc](https://yal.cc) for the inspiration on how to make this algorithm. Check out [YAL's pixel font generator](https://yal.cc/tools/pixel-font/) live.

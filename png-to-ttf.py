@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Build a strike's TTF from its yal source (PNG + JSON).
+"""Build a strike's TTF from its source pair (PNG + JSON).
 
-This is a faithful reimplementation of the yal.cc pixelfont converter that is
-vendored in `pixelfont/` — the step that used to be done by hand ("load the
-PNG+JSON in yal, hit Build, save the TTF"). With this, `src/quanta-strike-N/`
-only needs the PNG + JSON; the TTF is a pure build artifact.
+Turns the drawn pixel sheet into outlines, so `src/quanta-strike-N/` only needs
+the PNG + JSON and the TTF is a pure build artifact. This replaces what used to
+be a manual export step; the build now has no external dependency.
 
-Behaviour is taken from `pixelfont/script.js` (minified Haxe), not guessed:
+The rules it encodes:
 
   cell(row, col) top-left = (glyph-ofs-x + col*(glyph-width  + glyph-sep-x),
                              glyph-ofs-y + row*(glyph-height + glyph-sep-y))
@@ -16,9 +15,13 @@ Behaviour is taken from `pixelfont/script.js` (minified Haxe), not guessed:
                     wound (x,y) (x+1,y) (x+1,y-1) (x,y-1) = clockwise
   advance (mono)   = (glyph-width + glyph-spacing) * font-px-size
 
-`contour-type: pixel` emits one independent square per filled pixel and does
-NOT merge them — so the output matches yal contour-for-contour. Nothing is
-rescaled: 1 pixel stays exactly font-px-size (128) units. See CLAUDE.md.
+Note the ink test is a weighted-luminance threshold, not an equality check: a
+mid-tone counts as ink, so only LIGHT or TRANSPARENT alignment guides drawn in
+the art stay out of the font — a dark guide would become ink.
+
+`contour-type: pixel` emits one independent square per filled pixel and does NOT
+merge them. Nothing is rescaled: 1 pixel stays exactly font-px-size (128) units.
+See CLAUDE.md.
 
 Vertical metrics are taken from the JSON, but anchor-em.py re-anchors them
 downstream anyway; what has to be right here is outlines, widths and cmap.
@@ -28,6 +31,8 @@ Usage:
 
     SRC   a src/ directory, a strike directory, or a .json file
     OUT   a directory to write <family>.ttf into (default: next to the JSON)
+
+Thanks to https://yal.cc for the inspiration on how to make this algorithm.
 """
 
 import argparse
@@ -44,15 +49,15 @@ except ImportError:
 
 
 # ── PNG ────────────────────────────────────────────────────────────────────
-# A small decoder so the build needs no imaging library. The yal sources are
+# A small decoder so the build needs no imaging library. The source sheets are
 # all 8-bit non-interlaced RGB/RGBA, which is what we accept.
 
 PNG_SIG = b"\x89PNG\r\n\x1a\n"
 
 
 class Image:
-    """8-bit RGBA pixels. Reads outside the canvas are transparent, which is
-    what a browser canvas' getImageData() gives yal for out-of-bounds cells."""
+    """8-bit RGBA pixels. Reads outside the canvas are transparent, matching the
+    browser-canvas behaviour the source format assumes for out-of-bounds cells."""
 
     def __init__(self, width, height, rgba):
         self.width = width
@@ -148,7 +153,7 @@ def decode_png(path):
 
 
 # ── ink test ───────────────────────────────────────────────────────────────
-# script.js maps glyph-color to a mode, then tests each pixel. Note that
+# glyph-color selects a mode, and each pixel is tested against it. Note that
 # "black" is a weighted-luminance test, not an equality check: mid-tones count
 # as ink, and only light or transparent pixels are ignored (which is how
 # alignment guides drawn in the source art stay out of the font).
@@ -162,7 +167,7 @@ def ink_test(glyph_color, image):
         return lambda r, g, b, a: a >= 128
     if glyph_color == "color":
         return lambda r, g, b, a: a > 0
-    # yal's fallback: sample the top-left pixel and decide from it.
+    # Fallback: sample the top-left pixel and decide the mode from it.
     r, g, b, a = image.pixel(0, 0)
     if a < 64:
         return lambda r, g, b, a: a >= 128
@@ -176,7 +181,8 @@ def ink_test(glyph_color, image):
 # other rule is reported rather than silently ignored, so a source change can't
 # quietly lose meaning.
 
-# script.js: Of = the codepoints \s expands to (all optional).
+# The codepoints \s expands to. All optional: hiding one that the sheet does
+# not define is not an error.
 SPACE_CODEPOINTS = [
     0x09, 0x0B, 0x0C, 0x20, 0xA0, 0x1680,
     0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005, 0x2006, 0x2007,
@@ -187,7 +193,7 @@ ESCAPES = {"0": 0, "r": 13, "n": 10, "t": 9, '"': 34, "'": 39, "-": 45, "\\": 92
 
 
 def parse_glyph_spec(spec):
-    """Expand a `hide` rule's glyph list into codepoints (script.js Cf.$b)."""
+    """Expand a `hide` rule's glyph list into codepoints."""
     out = []
     i = 0
     while i < len(spec):
@@ -238,11 +244,11 @@ def parse_overrides(lines):
 # ── conversion ─────────────────────────────────────────────────────────────
 
 def iter_cells(rows):
-    """Walk in-glyphs the way script.js does, yielding (codepoint, row, col).
+    """Walk in-glyphs, yielding (codepoint, row, col).
 
-    Two details that matter: the grid column advances per codepoint (yal indexes
-    by codepoint, so astral chars occupy one cell, not two), and only the FIRST
-    space in the whole sheet becomes a glyph — later spaces just leave a gap.
+    Two details that matter: the grid column advances per CODEPOINT (so astral
+    chars occupy one cell, not two), and only the FIRST space in the whole sheet
+    becomes a glyph — later spaces just leave a gap.
     """
     seen_space = False
     for row, line in enumerate(rows):
@@ -300,7 +306,7 @@ def convert(json_path, out_path, quiet=False):
     # NB: setting is_quadratic on the layers up front segfaults FontForge here,
     # and it buys nothing — every contour is a straight-edged polygon with all
     # points on-curve, so the cubic->quadratic conversion at generate() time is
-    # exact (verified against yal's TTF, point for point).
+    # exact (verified point for point against the reference output).
 
     font.familyname = cfg.get("font-name", os.path.basename(out_path))
     font.fontname = font.familyname
@@ -355,8 +361,8 @@ def convert(json_path, out_path, quiet=False):
               f"{''.join(out_of_bounds[:12])}{'…' if len(out_of_bounds) > 12 else ''}",
               file=sys.stderr)
 
-    # yal ships the usual TrueType pair of empty glyphs alongside the sheet:
-    # .notdef and a non-marking carriage return, both at the advance width.
+    # The usual TrueType pair of empty glyphs alongside the sheet: .notdef and a
+    # non-marking carriage return, both at the advance width.
     font.createChar(0x0D, "uni000D")
     for name in (".notdef", "uni000D"):
         glyph = font[name] if name in font else font.createChar(-1, name)
@@ -405,7 +411,7 @@ def find_sources(src, families):
 
 def main():
     ap = argparse.ArgumentParser(
-        description="Build strike TTFs from their yal PNG + JSON sources.")
+        description="Build strike TTFs from their PNG + JSON sources.")
     ap.add_argument("src", nargs="?", default="./src",
                     help="src directory, a strike directory, or a .json file")
     ap.add_argument("out", nargs="?",
