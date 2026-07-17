@@ -192,17 +192,31 @@ def set_font_metadata(font, family_name, style_info, args, logger):
     # Set compatible full name for legacy compatibility
     font.appendSFNTName('English (US)', 'Compatible Full', human_name)
     
+    # Set designer name (name ID 9) if provided
+    if args.designer:
+        font.appendSFNTName('English (US)', 'Designer', args.designer)
+        logger.debug(f"Designer set: {args.designer}")
+
     # Set designer URL if provided
     if args.designerurl:
         font.appendSFNTName('English (US)', 'Designer URL', args.designerurl)
         logger.debug(f"Designer URL set: {args.designerurl}")
-    
+
     # Set license URL if provided
     if args.licenseurl:
         font.appendSFNTName('English (US)', 'License URL', args.licenseurl)
         logger.debug(f"License URL set: {args.licenseurl}")
-    
-    # Set license/copyright if provided
+
+    # Set the license description (name ID 13) — this is the licence itself, and
+    # is a different field from the copyright notice below. Google Fonts checks
+    # both: ID 0 must be the copyright line, ID 13 the OFL blurb.
+    if args.licensedesc:
+        font.appendSFNTName('English (US)', 'License', args.licensedesc)
+        logger.debug(f"License description set: {args.licensedesc}")
+
+    # Set the copyright notice (name ID 0). NB: FontForge pre-fills this from the
+    # OS account name, so always set it explicitly — otherwise the builder's real
+    # name ships inside the font.
     if args.license:
         font.appendSFNTName('English (US)', 'Copyright', args.license)
         font.copyright = args.license  # Also set the general copyright property
@@ -355,14 +369,21 @@ def main():
     parser.add_argument('--family',
                         help='Process only a specific font family')
     
+    parser.add_argument('--designer',
+                        help='Set designer/author name, name ID 9 (e.g., "dithernaut")')
+
     parser.add_argument('--designerurl',
                         help='Set designer URL (e.g., https://pico.com)')
-    
+
     parser.add_argument('--licenseurl',
                         help='Set license URL (e.g., https://pico.com/license)')
-    
+
+    parser.add_argument('--licensedesc',
+                        help='Set the license description, name ID 13 (e.g. the OFL blurb). '
+                             'Distinct from --license, which is the copyright notice.')
+
     parser.add_argument('--license',
-                        help='Set license/copyright text (e.g., "(c) pico 2025")')
+                        help='Set the copyright notice, name ID 0 (e.g., "Copyright 2026 ...")')
     
     args = parser.parse_args()
     

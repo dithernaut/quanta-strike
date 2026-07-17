@@ -1,0 +1,32 @@
+{
+  "$comment": [
+    "Default metadata for build.sh — edit here instead of answering prompts.",
+    "If this file is present the build uses it and asks nothing; delete or rename",
+    "it to get the interactive questions back.",
+    "",
+    "License: OFL-1.1, which is what Google Fonts requires (it accepts only",
+    "OFL-1.1 / Apache-2.0 / UFL — not MIT, not Creative Commons). OFL allows",
+    "donations, sponsorship and bundling; the one thing it forbids is selling the",
+    "font on its own. Shipping OFL also requires an OFL.txt next to the fonts.",
+    "",
+    "copyright -> name ID 0   (the notice; Google Fonts wants this exact shape)",
+    "license   -> name ID 13  (the licence itself)",
+    "designer  -> name ID 9",
+    "",
+    "No version here on purpose: the version bump is a per-release decision, so",
+    "build.sh always asks for it."
+  ],
+
+  "lowercase": true,
+  "type": "monospace",
+  "extension": "ttf",
+
+  "designer": "dithernaut",
+  "designerurl": "https://dithernaut.com",
+
+  "copyright": "Copyright 2026 The quanta-strike Project Authors (https://dithernaut.com)",
+  "license": "This Font Software is licensed under the SIL Open Font License, Version 1.1. This license is available with a FAQ at https://openfontlicense.org",
+  "licenseurl": "https://openfontlicense.org",
+
+  "debug": false
+}

@@ -62,6 +62,26 @@ Order: `png-to-ttf → metadata → small caps → old-style figures → anchor-
 - **font-metadata-patcher.py** — names/version/license/OS2 class etc. NEVER touches
   vertical metrics (keeps the pixel grid). `--flat` writes all strikes into one
   `build/ttf/quanta-strike/` folder.
+  - Values come from **`default-metadata.json`** at the repo root; when it exists
+    build.sh reads it and asks no metadata questions (delete it to get the prompts
+    back). The one exception is the **version bump, which is ALWAYS asked** and must
+    never be moved into the defaults — it's a per-release decision, not a constant.
+  - Author is `dithernaut` / dithernaut.com; licence is **OFL-1.1**, the only practical
+    choice since Google Fonts accepts only OFL-1.1 / Apache-2.0 / UFL (not MIT, not
+    Creative Commons). OFL permits donations and bundling; it forbids selling the font
+    on its own.
+  - **`OFL.txt`** (repo root) is the canonical SIL text, verbatim from
+    openfontlicense.org, with the placeholder header replaced by our notice and NO
+    Reserved Font Name (the Google Fonts convention). Its first line must stay
+    byte-identical to `copyright` in default-metadata.json — Google Fonts compares
+    them. `run_copy_license` copies it into every build output folder holding fonts,
+    because the OFL requires the licence to travel with them.
+  - Three DIFFERENT name-table fields, easy to conflate: `--license` = copyright
+    notice (ID 0), `--licensedesc` = the licence text (ID 13), `--designer` = author
+    (ID 9). Google Fonts checks all of them.
+  - **FontForge pre-fills copyright with the OS account's real name**, so it must
+    always be set explicitly or the builder's legal name ships in the font.
+    png-to-ttf.py sets it from the JSON, and the patcher overwrites it.
 - **add-small-caps.py / add-old-style-figures.py** — add `smcp`/`c2sc` and `onum` GSUB
   features from existing glyphs (sources: phonetic/lowercase/capital; circled/super/sub).
 - **anchor-em.py** — the **pixel-perfect step (DEFAULT)**. Sets `em = N×128`,

@@ -21,6 +21,14 @@ BUILD_DIR="./build"
 TTF_DIR="$BUILD_DIR/ttf"
 TTF_GROUP_DIR="$TTF_DIR/quanta-strike"
 
+# Metadata defaults. When this file exists the build reads names/license/URLs
+# from it and skips the questions; remove it to get the interactive prompts.
+DEFAULTS_FILE="./default-metadata.json"
+
+# The licence text. OFL requires it to be distributed WITH the fonts, so it gets
+# copied into every output folder that holds fonts.
+LICENSE_FILE="./OFL.txt"
+
 # Staged sources. png-to-ttf.py builds each strike's TTF in here, mirroring the
 # src/<family>/<style>/ layout the metadata patcher expects, so that src/ only
 # ever holds the real sources (PNG + JSON) and never a build artifact.
@@ -243,6 +251,42 @@ run_png_to_ttf() {
     fi
     if [ $reused -gt 0 ]; then
         print_success "Reused $reused prebuilt TTF(s)"
+    fi
+    return 0
+}
+
+# The OFL requires the licence to travel with the fonts ("must be distributed
+# entirely under this license"), so drop OFL.txt into every output folder that
+# ended up containing fonts. The staging dir is skipped — it isn't shipped.
+run_copy_license() {
+    if [ ! -f "$LICENSE_FILE" ]; then
+        print_warning "$LICENSE_FILE not found — fonts would ship without their licence"
+        return 0
+    fi
+
+    print_info "Copying ${BOLD}$LICENSE_FILE${NC} next to the built fonts..."
+
+    local copied=0
+    local dir f has
+    while IFS= read -r dir; do
+        # Does this folder actually hold fonts? (An unmatched glob stays literal,
+        # so -e is the reliable test — `ls a/*.ttf a/*.otf` would report failure
+        # whenever ANY one of the patterns matches nothing.)
+        has=0
+        for f in "$dir"/*.ttf "$dir"/*.otf "$dir"/*.woff2; do
+            if [ -e "$f" ]; then has=1; break; fi
+        done
+        if [ $has -eq 0 ]; then continue; fi
+
+        cp "$LICENSE_FILE" "$dir/"
+        copied=$((copied + 1))
+        echo -e "  ${DIM}$dir/$(basename "$LICENSE_FILE")${NC}"
+    done < <(find "$BUILD_DIR" -mindepth 1 -type d ! -path "$BUILD_DIR/tmp*" 2>/dev/null)
+
+    if [ $copied -eq 0 ]; then
+        print_warning "No font output folders found to place the licence in"
+    else
+        print_success "Licence copied into $copied folder(s)"
     fi
     return 0
 }
@@ -517,9 +561,83 @@ compute_version_flag() {
 VERSION_STRATEGY="5"
 VERSION_CUSTOM=""
 
+# Turn default-metadata.json into patcher flags (shell-quoted, one line).
+metadata_flags_from_defaults() {
+    python3 - "$DEFAULTS_FILE" <<'PY'
+import json, shlex, sys
+
+cfg = json.load(open(sys.argv[1]))
+flags = []
+if cfg.get("lowercase"):
+    flags.append("--lowercase")
+if cfg.get("debug"):
+    flags.append("--debug")
+for key, flag in (("type", "--type"), ("extension", "--extension"),
+                  ("designer", "--designer"), ("designerurl", "--designerurl"),
+                  ("copyright", "--license"), ("license", "--licensedesc"),
+                  ("licenseurl", "--licenseurl")):
+    value = cfg.get(key)
+    if value:
+        flags += [flag, str(value)]
+print(" ".join(shlex.quote(f) for f in flags))
+PY
+}
+
+# Print a human summary of what the defaults will apply.
+metadata_summary_from_defaults() {
+    python3 - "$DEFAULTS_FILE" <<'PY'
+import json, sys
+
+cfg = json.load(open(sys.argv[1]))
+for key in ("designer", "designerurl", "copyright", "license", "licenseurl",
+            "type", "extension"):
+    value = cfg.get(key)
+    if not value:
+        continue
+    text = str(value)
+    if len(text) > 64:
+        text = text[:61] + "..."
+    print(f"    {key:12s} {text}")
+PY
+}
+
+# Ask for the version bump. Deliberately always asked, never taken from
+# default-metadata.json: it's a per-release decision, not a project constant.
+# Sets VERSION_STRATEGY / VERSION_CUSTOM; version computed per-family at build time.
+ask_version() {
+    echo
+    print_header "Version"
+    echo "    1) patch bump"
+    echo "    2) minor bump"
+    echo "    3) major bump"
+    echo "    4) custom (same for all)"
+    echo "    5) keep"
+    printf "${YELLOW}?${NC} Version [1/2/3/4/5] (default: 5): "
+    read -r ver_choice
+    VERSION_STRATEGY="${ver_choice:-5}"
+    VERSION_CUSTOM=""
+    if [ "$VERSION_STRATEGY" = "4" ]; then
+        printf "${YELLOW}?${NC} Version: "
+        read -r VERSION_CUSTOM
+    fi
+}
+
 # Gather metadata patcher options (stores in global METADATA_OPTIONS)
 get_metadata_options() {
     local options=""
+
+    # Defaults file present → take everything from it EXCEPT the version bump.
+    if [ -f "$DEFAULTS_FILE" ]; then
+        echo
+        print_header "Metadata Options ${DIM}(from $DEFAULTS_FILE)${NC}"
+        METADATA_OPTIONS=" $(metadata_flags_from_defaults)"
+        metadata_summary_from_defaults
+        echo
+        print_info "Edit $DEFAULTS_FILE to change these (delete it to be asked instead)."
+
+        ask_version
+        return 0
+    fi
 
     echo
     print_header "Metadata Options"
@@ -536,22 +654,7 @@ get_metadata_options() {
         options="$options --type serif"
     fi
 
-    # Version bump strategy — actual version computed per-family at build time
-    echo
-    print_header "Version"
-    echo "    1) patch bump"
-    echo "    2) minor bump"
-    echo "    3) major bump"
-    echo "    4) custom (same for all)"
-    echo "    5) keep"
-    printf "${YELLOW}?${NC} Version [1/2/3/4/5] (default: 5): "
-    read -r ver_choice
-    VERSION_STRATEGY="${ver_choice:-5}"
-    VERSION_CUSTOM=""
-    if [ "$VERSION_STRATEGY" = "4" ]; then
-        printf "${YELLOW}?${NC} Version: "
-        read -r VERSION_CUSTOM
-    fi
+    ask_version
 
     printf "${YELLOW}?${NC} Output extension (ttf/otf, enter to keep): "
     read -r extension
@@ -776,6 +879,10 @@ main() {
         fi
     fi
 
+    # ─── Licence: must ship with the fonts (do this after every output exists) ──
+    run_copy_license
+    echo
+
     # ─── Summary ──────────────────────────────────────────────────────
     echo
     print_header "Done!"
@@ -789,6 +896,7 @@ main() {
     [ "$do_woff2" = true ] && print_success "Exported WOFF2 web fonts"
     [ "$do_nerd" = true ] && print_success "Generated Nerd Font variants for: ${selected_families[*]}"
     [ "$do_woff2_nerd" = true ] && print_success "Exported Nerd Font WOFF2 variants"
+    [ -f "$LICENSE_FILE" ] && print_success "Shipped $LICENSE_FILE with the fonts (required by the OFL)"
 
     echo
     print_info "Output: $BUILD_DIR/"

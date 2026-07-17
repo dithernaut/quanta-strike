@@ -311,6 +311,13 @@ def convert(json_path, out_path, quiet=False):
     font.familyname = cfg.get("font-name", os.path.basename(out_path))
     font.fontname = font.familyname
     font.fullname = font.familyname
+
+    # FontForge pre-fills copyright with the OS account's real name, which would
+    # otherwise ship inside every font. Take it from the JSON instead. The
+    # metadata patcher overwrites this downstream; this is just a safe default.
+    notice = " ".join(x for x in (cfg.get("font-copy", "").strip(),
+                                  cfg.get("font-author", "").strip()) if x)
+    font.copyright = notice
     font.weight = cfg.get("font-style", "Regular")
 
     n_glyphs = n_ink = 0
