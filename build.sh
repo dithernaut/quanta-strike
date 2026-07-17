@@ -18,6 +18,8 @@ NC='\033[0m' # No Color
 # Default directories
 SRC_DIR="./src"
 BUILD_DIR="./build"
+TTF_DIR="$BUILD_DIR/ttf"
+TTF_GROUP_DIR="$TTF_DIR/quanta-strike"
 
 # Global variable to store metadata options
 METADATA_OPTIONS=""
@@ -196,7 +198,7 @@ run_metadata_patcher() {
 
     print_info "Running metadata patcher for ${BOLD}$family_name${NC}..."
 
-    local cmd="python3 font-metadata-patcher.py --src '$SRC_DIR' --family '$family_name' --output '$BUILD_DIR'"
+    local cmd="python3 font-metadata-patcher.py --src '$SRC_DIR' --family '$family_name' --output '$TTF_GROUP_DIR' --flat"
 
     if [ -n "$extra_args" ]; then
         cmd="$cmd $extra_args"
@@ -213,67 +215,156 @@ run_metadata_patcher() {
     fi
 }
 
-# Function to run nerd fonts generator
+# Function to run nerd fonts generator for selected families only
+# Usage: run_nerd_fonts_generator family1 family2 ...
 run_nerd_fonts_generator() {
-    local family_name="$1"
+    local families=("$@")
 
-    print_info "Running nerd fonts generator for ${BOLD}$family_name${NC}..."
+    print_info "Running Nerd Fonts generator for: ${BOLD}${families[*]}${NC}"
 
     if [ ! -f "./generate-nerd-fonts" ]; then
         print_error "generate-nerd-fonts script not found"
         return 1
     fi
 
-    if [ ! -d "$BUILD_DIR/$family_name" ]; then
-        print_error "Build directory not found: $BUILD_DIR/$family_name"
+    if [ ! -d "$TTF_GROUP_DIR" ]; then
+        print_error "Build directory not found: $TTF_GROUP_DIR"
         return 1
     fi
 
-    if "./generate-nerd-fonts" "$family_name"; then
-        print_success "Nerd fonts generator completed for $family_name"
+    if [ ${#families[@]} -eq 0 ]; then
+        print_error "No families specified for Nerd Font generation"
+        return 1
+    fi
+
+    local nerd_dir="${TTF_GROUP_DIR}-nerd"
+    if "./generate-nerd-fonts" "$TTF_GROUP_DIR" "$nerd_dir" "${families[@]}"; then
+        print_success "Nerd Fonts generator completed"
         return 0
     else
-        print_error "Nerd fonts generator failed for $family_name"
+        print_error "Nerd Fonts generator failed"
         return 1
     fi
 }
 
 # Function to run small caps generator
 run_small_caps() {
-    local family_name="$1"
-    local source="$2"
-    local c2sc="$3"
+    local source="$1"
+    local c2sc="$2"
 
-    print_info "Running small caps for ${BOLD}$family_name${NC}..."
+    print_info "Running small caps..."
 
-    local cmd="python3 add-small-caps.py --src '$BUILD_DIR/$family_name' --source '$source'"
+    local cmd="python3 add-small-caps.py --src '$TTF_GROUP_DIR' --source '$source'"
     if [ "$c2sc" != "true" ]; then
         cmd="$cmd --no-c2sc"
     fi
 
     if eval "$cmd"; then
-        print_success "Small caps completed for $family_name"
+        print_success "Small caps completed"
         return 0
     else
-        print_error "Small caps failed for $family_name"
+        print_error "Small caps failed"
         return 1
     fi
 }
 
 # Function to run old-style figures generator
 run_old_style_figures() {
-    local family_name="$1"
-    local source="$2"
+    local source="$1"
 
-    print_info "Running old-style figures for ${BOLD}$family_name${NC}..."
+    print_info "Running old-style figures..."
 
-    local cmd="python3 add-old-style-figures.py --src '$BUILD_DIR/$family_name' --source '$source'"
+    local cmd="python3 add-old-style-figures.py --src '$TTF_GROUP_DIR' --source '$source'"
 
     if eval "$cmd"; then
-        print_success "Old-style figures completed for $family_name"
+        print_success "Old-style figures completed"
         return 0
     else
-        print_error "Old-style figures failed for $family_name"
+        print_error "Old-style figures failed"
+        return 1
+    fi
+}
+
+# Function to convert the built TTFs to WOFF2 web fonts
+run_woff2() {
+    local include_nerd="$1"
+
+    print_info "Converting to WOFF2..."
+
+    local cmd="python3 convert-woff2.py '$TTF_DIR' '$BUILD_DIR/woff2'"
+    if [ "$include_nerd" = "true" ]; then
+        cmd="$cmd --include-nerd"
+    fi
+
+    if eval "$cmd"; then
+        print_success "WOFF2 conversion completed"
+        return 0
+    else
+        print_error "WOFF2 conversion failed"
+        return 1
+    fi
+}
+
+# Verify the pixel-grid invariant (em == N*128, glyphs on the 128 grid) for one
+# or more targets. Refuses to continue if any strike would render a pixel that
+# is not exactly 1.0000px at its native size.
+# Usage: run_verify "label" target1 [target2 ...]
+run_verify() {
+    local label="$1"; shift
+    local targets=("$@")
+
+    if [ ! -f "./verify-pixel-grid.py" ]; then
+        print_warning "verify-pixel-grid.py not found — skipping invariant check"
+        return 0
+    fi
+
+    print_info "Verifying pixel-grid invariant ($label)..."
+
+    if python3 verify-pixel-grid.py "${targets[@]}" 2>/dev/null; then
+        print_success "Pixel-grid invariant holds ($label)"
+        return 0
+    else
+        print_error "Pixel-grid invariant violated ($label) — a pixel would not be 1.0000px at native size"
+        return 1
+    fi
+}
+
+# Function to uniformly scale the whole family bigger while keeping the pixel
+# size identical across strikes (picotype-style line metrics, one shared factor)
+run_pixel_scale() {
+    local scale="$1"
+
+    if [ ! -f "./pixel-scale.py" ]; then
+        print_error "pixel-scale.py not found"
+        return 1
+    fi
+
+    print_info "Scaling family (pixel stays identical across strikes) at factor ${BOLD}$scale${NC}..."
+
+    if python3 pixel-scale.py "$TTF_GROUP_DIR" --scale "$scale"; then
+        print_success "Pixel-scale completed"
+        return 0
+    else
+        print_error "Pixel-scale failed"
+        return 1
+    fi
+}
+
+# Function to anchor the em to N*128 (pixel-perfect) and set line metrics to the
+# full ink extent, so accents drawn above the em (taller canvas) don't clip.
+run_anchor_em() {
+    if [ ! -f "./anchor-em.py" ]; then
+        print_error "anchor-em.py not found"
+        return 1
+    fi
+
+    print_info "Anchoring em to strike size (pixel-perfect) + line metrics for accent overshoot..."
+
+    if python3 anchor-em.py "$TTF_GROUP_DIR"; then
+        print_success "Anchor-em completed"
+        return 0
+    else
+        print_error "Anchor-em failed"
         return 1
     fi
 }
@@ -316,11 +407,11 @@ get_family_version() {
     local family="$1"
     python3 -c "
 import fontforge, sys, os
-fdir = os.path.join('$BUILD_DIR', '$family')
+fdir = '$TTF_GROUP_DIR'
 if not os.path.isdir(fdir):
     sys.exit(0)
 for fname in sorted(os.listdir(fdir)):
-    if fname.endswith(('.ttf', '.otf')):
+    if fname.startswith('$family') and fname.endswith(('.ttf', '.otf')):
         f = fontforge.open(os.path.join(fdir, fname))
         print(f.version or '')
         f.close()
@@ -485,6 +576,17 @@ main() {
     done
     print_info "Selected: ${selected_families[*]}"
 
+    # ─── Step 1b: Fail fast — source strikes must be on the pixel grid ─
+    local src_targets=()
+    for fam in "${selected_families[@]}"; do
+        src_targets+=("$SRC_DIR/$fam")
+    done
+    echo
+    if ! run_verify "source" "${src_targets[@]}"; then
+        print_error "Fix the source strike(s) above before building — aborting."
+        exit 1
+    fi
+
     # ─── Step 2: Configure metadata options ───────────────────────────
     get_metadata_options
     echo
@@ -517,70 +619,114 @@ main() {
         do_nerd=true
     fi
 
+    # Vertical sizing: always anchor to pixel-perfect (em = N*128), then an
+    # optional uniform scale-up on top. Default scale 1 = leave it pixel-perfect.
+    echo
+    print_header "Vertical sizing"
+    print_info "Every strike is anchored to em = N×128 (pixel-perfect, 1px at native)."
+    printf "${YELLOW}?${NC} Scale factor on top [default 1 = leave pixel-perfect]: "
+    read -r sf
+    local scale_factor="${sf:-1}"
+
+    local do_woff2=false
+    local do_woff2_nerd=false
+    if ask_yes_no "Also export WOFF2 web fonts?" "y"; then
+        do_woff2=true
+        if [ "$do_nerd" = true ]; then
+            if ask_yes_no "Include Nerd Font variants in WOFF2 (large files)?"; then
+                do_woff2_nerd=true
+            fi
+        fi
+    fi
+
     # ─── Step 4: Process ──────────────────────────────────────────────
     echo
     echo "────────────────────────────────────────────────────────────────"
     echo
 
     local processed_count=0
-    local smcp_count=0
-    local onum_count=0
-    local nerd_count=0
 
+    # ─── Step 4a: Metadata for each selected strike (into the shared group dir) ──
     for family_name in "${selected_families[@]}"; do
-        print_header "Building: $family_name"
+        print_header "Metadata: $family_name"
         echo
 
         # Compute per-family version flag
         local version_flag=""
         version_flag=$(compute_version_flag "$family_name")
 
-        # Run metadata patcher
         if run_metadata_patcher "$family_name" "$METADATA_OPTIONS $version_flag"; then
             ((processed_count++))
-
-            # Small caps
-            if [ "$do_small_caps" = true ]; then
-                echo
-                if run_small_caps "$family_name" "$smcp_source" "$smcp_c2sc"; then
-                    ((smcp_count++))
-                fi
-            fi
-
-            # Old-style figures
-            if [ "$do_onum" = true ]; then
-                echo
-                if run_old_style_figures "$family_name" "$onum_source"; then
-                    ((onum_count++))
-                fi
-            fi
-
-            # Nerd fonts
-            if [ "$do_nerd" = true ]; then
-                echo
-                if run_nerd_fonts_generator "$family_name"; then
-                    ((nerd_count++))
-                fi
-            fi
         fi
-
-        echo
-        echo "────────────────────────────────────────────────────────────────"
         echo
     done
+
+    if [ $processed_count -eq 0 ]; then
+        print_error "No fonts were built."
+        exit 1
+    fi
+
+    echo "────────────────────────────────────────────────────────────────"
+    echo
+
+    # ─── Step 4b: Features on base TTFs, then WOFF2, then Nerd (slow) last ──────
+    if [ "$do_small_caps" = true ]; then
+        run_small_caps "$smcp_source" "$smcp_c2sc"
+        echo
+    fi
+    if [ "$do_onum" = true ]; then
+        run_old_style_figures "$onum_source"
+        echo
+    fi
+
+    # Always anchor to pixel-perfect first (before the gate/WOFF2/Nerd)...
+    run_anchor_em
+    echo
+    # ...then optionally scale the whole family up on top (1 = no-op, stays pixel-perfect).
+    if [ "$scale_factor" != "1" ] && [ "$scale_factor" != "1.0" ]; then
+        run_pixel_scale "$scale_factor"
+        echo
+    fi
+
+    # ─── Gate: built base TTFs must still hold the pixel-grid invariant ──
+    # (metadata + features must not have disturbed em or pixel alignment)
+    if ! run_verify "build output" "$TTF_GROUP_DIR"; then
+        print_error "Built fonts broke the pixel-grid invariant — refusing to emit WOFF2/Nerd."
+        exit 1
+    fi
+    echo
+
+    # Base WOFF2 first so normal web fonts are ready before the slow Nerd pass
+    if [ "$do_woff2" = true ]; then
+        run_woff2 false
+        echo
+    fi
+
+    if [ "$do_nerd" = true ]; then
+        run_nerd_fonts_generator "${selected_families[@]}"
+        echo
+        if [ "$do_woff2" = true ] && [ "$do_woff2_nerd" = true ]; then
+            run_woff2 true
+            echo
+        fi
+    fi
 
     # ─── Summary ──────────────────────────────────────────────────────
     echo
     print_header "Done!"
-    print_success "Processed $processed_count font families"
-    [ $smcp_count -gt 0 ] && print_success "Added small caps to $smcp_count families"
-    [ $onum_count -gt 0 ] && print_success "Added old-style figures to $onum_count families"
-    [ $nerd_count -gt 0 ] && print_success "Generated $nerd_count nerd font variants"
-
-    if [ $processed_count -gt 0 ]; then
-        echo
-        print_info "Output: $BUILD_DIR/"
+    print_success "Built $processed_count strike(s) into $TTF_GROUP_DIR"
+    [ "$do_small_caps" = true ] && print_success "Added small caps (smcp/c2sc)"
+    [ "$do_onum" = true ] && print_success "Added old-style figures (onum)"
+    print_success "Anchored em to strike size (pixel-perfect, accent overshoot handled)"
+    if [ "$scale_factor" != "1" ] && [ "$scale_factor" != "1.0" ]; then
+        print_success "Scaled family by ×$scale_factor on top (pixel identical across strikes)"
     fi
+    [ "$do_woff2" = true ] && print_success "Exported WOFF2 web fonts"
+    [ "$do_nerd" = true ] && print_success "Generated Nerd Font variants for: ${selected_families[*]}"
+    [ "$do_woff2_nerd" = true ] && print_success "Exported Nerd Font WOFF2 variants"
+
+    echo
+    print_info "Output: $BUILD_DIR/"
 }
 
 # Check for help flag
@@ -592,13 +738,14 @@ if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
     echo "Flow:"
     echo "  1. Select font families (space to toggle, a to select all)"
     echo "  2. Configure metadata options (applied to all selected)"
-    echo "  3. Choose optional features (small caps, old-style figures, nerd fonts)"
-    echo "  4. Build!"
+    echo "  3. Choose optional features (small caps, old-style figures, nerd fonts, WOFF2)"
+    echo "  4. Build base TTF (+ WOFF2), then Nerd Fonts last (selected families only)"
     echo
     echo "Requirements:"
     echo "  - font-metadata-patcher.py in current directory"
     echo "  - FontForge with Python bindings (brew install fontforge)"
     echo "  - generate-nerd-fonts script (for nerd font variants)"
+    echo "  - verify-pixel-grid.py (enforces em == N*128 / 1px-per-pixel invariant)"
     echo
     exit 0
 fi

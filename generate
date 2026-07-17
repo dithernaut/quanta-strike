@@ -1,48 +1,19 @@
 #!/bin/bash
 #
-# Batch Nerd Font generation for every built quanta-strike family.
+# Batch Nerd Font generation for the consolidated build layout.
 #
-# Reads build/<family>/ (produced by font-metadata-patcher.py / build.sh) and
-# patches each one with Nerd Font icons via ./generate-nerd-fonts, writing the
-# result to build/<family>nerd/. Any family whose name already ends in "nerd"
-# is skipped so re-runs don't double-patch.
+# Patches every strike in build/ttf/quanta-strike/ into
+# build/ttf/quanta-strike-nerd/ (all strikes share the folder, each keeps its
+# own "<strike>-nerd" family).
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
-BUILD_DIR="./build"
+INPUT_DIR="./build/ttf/quanta-strike"
 
-if [ ! -d "$BUILD_DIR" ]; then
-    echo "Error: $BUILD_DIR not found. Run the metadata patcher / build.sh first."
+if [ ! -d "$INPUT_DIR" ]; then
+    echo "Error: $INPUT_DIR not found. Run the metadata patcher / build.sh first."
     exit 1
 fi
 
-safely_generate() {
-    ./generate-nerd-fonts "$1"
-    if [ $? -ne 0 ]; then
-        echo "Error generating Nerd Font variant for $1"
-        exit 1
-    fi
-}
-
-found=0
-for family_dir in "$BUILD_DIR"/*/; do
-    [ -d "$family_dir" ] || continue
-    family="$(basename "$family_dir")"
-    case "$family" in
-        *-nerd) continue ;;   # skip already-patched output dirs
-    esac
-    # Only families that actually contain a .ttf
-    if ls "$family_dir"*.ttf >/dev/null 2>&1; then
-        found=1
-        echo "▶ $family"
-        safely_generate "$family"
-    fi
-done
-
-if [ "$found" -eq 0 ]; then
-    echo "No built families found in $BUILD_DIR to patch."
-    exit 1
-fi
-
-echo "All Nerd Font variants generated."
+./generate-nerd-fonts "$INPUT_DIR"

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Translating the pixel font converter</title>
+	<link rel="stylesheet" href="./../style.css?v=20-05-11"/>
+	<style type="text/css">
+	#hello-lang {
+		margin: 0 auto;
+	}
+	tt {
+		display: inline-block;
+		background: #FFFBE4;
+		font-family: Consolas, Ubuntu Mono, Dejavu Sans Mono, Lucida Console, monospace;
+		font-weight: normal;
+		font-size: 12px;
+		line-height: 16px;
+		padding: 0 2px;
+		border: 1px solid #E6E0C4;
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+		max-width: 100%;
+		word-break: break-word;
+	}
+	</style>
+</head>
+<body>
+<section id="hello-lang" class="hello-window">
+	<header>Translating the pixel font converter</header>
+	<section>
+		Hello! You can help translating the tool into your language.<br/>
+		The process is as following:
+		<ul>
+			<li>Download the <a href="en-US.json" target="_blank">English language file</a>
+				(it's in <a href="https://en.wikipedia.org/wiki/JSON" target="_blank">JSON</a> format).</li>
+			<li>
+				Translate the values in the language file to your language using a text/code editor, or even an online JSON editor.
+				<ul>
+					<li>
+						Make sure to not touch the keys! (left-hand <tt>something->property</tt>)
+					</li><li>
+						You can use a <a href="https://duckduckgo.com/?q=json+validator&ia=answer">JSON validator</a> to see if you have made any formatting mistakes.
+					</li><li>
+						Any value can be either a string (<tt>"hi"</tt>)
+						or an array of strings (<tt>["one", "two", "three"]</tt>).
+						For arrays, line breaks will be inserted between items
+						(except for <tt>-&gt;innerHTML</tt>).
+					</li><li>
+						It is entirely appropriate to credit yourself
+						under <tt>"help-about-list"</tt>.
+					</li>
+				</ul>
+			</li><li>
+				Test your translation by clicking "Import" in Settings and picking it
+				or dragging and dropping it onto the page.
+			</li><li>
+				When you are done, <a href="https://yal.cc/about/">send me</a> the file
+			</li>
+		</ul>
+	</section>
+</section>
+</body>
+</html>

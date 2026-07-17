@@ -238,7 +238,7 @@ def process_font_file(font_path, family_name, style_folder, output_dir, args, lo
         set_font_metadata(font, family_name, style_info, args, logger)
         
         # Create output directory
-        family_output_dir = output_dir / family_name
+        family_output_dir = output_dir if args.flat else output_dir / family_name
         family_output_dir.mkdir(parents=True, exist_ok=True)
         
         # Generate output filename
@@ -343,6 +343,10 @@ def main():
     parser.add_argument('--lowercase',
                         action='store_true',
                         help='Convert all font names to lowercase')
+
+    parser.add_argument('--flat',
+                        action='store_true',
+                        help='Write all fonts directly into --output (no per-family subfolder)')
     
     parser.add_argument('--debug',
                         action='store_true',

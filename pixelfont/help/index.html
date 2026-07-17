@@ -1,0 +1,684 @@
+<!DOCTYPE HTML><html lang="en"><head>
+<meta charset="UTF-8">
+<title>YAL's Pixel Font Converter documentation</title>
+<meta name="viewport" content="width=device-width" />
+<meta name="livenode" content="#doc" />
+<meta property="theme-color" content="#FFF037" />
+<meta property="og:type" content="article" />
+<meta property="og:locale" content="en_us" />
+<meta property="og:site_name" content="YellowAfterlife" />
+<meta property="og:title" content="YAL's Pixel Font Converter documentation" />
+<script type="text/javascript">
+if (document.location.host == "yal.cc" && location.protocol == "http:") {
+	document.location.protocol = "https:";
+}
+</script>
+<style type="text/css">body, #doc tt, #doc code {
+	font: 15px 'Open Sans', sans-serif;
+	line-height: 1.35;
+}
+body {
+	margin: 0;
+}
+.main {
+	width: 100%;
+	min-height: 100%;
+	min-height: 100vh;
+	background-color: #f5f7f9;
+}
+.page {
+	max-width: 656px;
+	background: #ffffff;
+	margin: 0 auto;
+	padding: 8px;
+	box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
+	min-height: 100%;
+	min-height: 100vh;
+	box-sizing: border-box;
+}
+.page > p:first-child {
+	margin-top: 0;
+}
+#doc, #doc ul, #doc ol {
+	padding-left: 0;
+	margin: 0;
+}
+#doc blockquote { margin: 0.5em 0; padding: 0; }
+#doc article > ul, #doc li > ul,
+#doc article > ol, #doc li > ol {
+	padding-left: 20px;
+}
+#doc article ul li {
+	list-style: disc;
+	list-style-image: url('data:image/svg+xml;base256,<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="20px" height="1em" viewBox="0 0 20px 1em"><circle cx="17px" cy="0.675em" r="2px"/></svg>'); 
+}
+
+#doc header {
+	margin: 0;
+	font-weight: 700;
+	font-size: 100%;
+	color: #458;
+	border-left: 2px solid #f3f3f3;/* #f9f9f9*/
+	padding-left: 4px;
+	padding-top: 1px;
+	padding-bottom: 1px;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+}
+#doc header a {
+	outline: none;
+	text-decoration: none;
+	color: #458;
+	word-break: break-word;
+}
+#doc header::before {
+	display: inline-block;
+	content: "+";
+	font: 12px monospace;
+	border: 1px solid #458;
+	line-height: 11px;
+	height: 11px;
+	width: 11px;
+	text-align: center;
+	border-radius: 50%;
+	margin-right: 4px;
+	vertical-align: middle;
+	flex-shrink: 0;
+}
+#doc section.open > header::before {
+	content: "-";
+}
+#doc section.empty > header::before {
+	content: " "; /*"·"*/
+}
+
+#doc header:hover,
+#doc .sticky-side:hover {
+	border-left-color: #E7E7E7; /* rgba(0, 0, 0, 0.05) */
+	background: rgba(0, 0, 0, 0.048);
+}
+#doc header .ret-arrow {
+	font-weight: normal;
+	margin: 0 0.1em;
+}
+
+#doc a.broken {
+	color: red;
+}
+#doc p, .intro p {
+	margin: 0;
+}
+#doc p + p, .intro p + p, #doc p.pad, .display-controls {
+	margin-top: 0.5em;
+}
+#doc img {
+	max-width: 100%;
+}
+#doc h3 {
+	margin: 0.25em 0;
+	font-size: 125%;
+	font-weight: normal;
+	border-bottom: 1px solid #ccc;
+}
+
+#doc article,
+#doc ul,
+#doc ol,
+#doc blockquote {
+	padding-left: 20px;
+	border-left: 2px solid #f3f3f3;
+}
+#doc article {
+	padding-top: 0.25em;
+	padding-bottom: 0.5em;
+	position: relative;
+}
+#doc .sticky-side {
+	position: absolute;
+	left: -2px;
+	top: 0;
+	bottom: 1px;
+	width: 20px;
+	writing-mode: vertical-rl;
+	font-size: 85%;
+	text-orientation: sideways;
+	/*transform: rotate(0.05deg);*/
+}
+#doc .sticky-side,
+#doc .sticky-side:visited {
+	color: rgba(0, 0, 0, 0.3);
+}
+#doc .sticky-side > span {
+	display: inline-block;
+	position: sticky;
+	left: 0;
+	top: 0;
+	padding: 0.3em 0;
+	max-height: 100%;
+	box-sizing: border-box;
+	overflow: hidden;
+	white-space: nowrap;
+}
+#doc tt {
+	font-weight: bold;
+}
+#doc code {
+	display: inline-block;
+	background: #FFFBE4;
+	font-family: Consolas, Ubuntu Mono, Dejavu Sans Mono, Lucida Console, monospace;
+	font-weight: normal;
+	font-size: 12px;
+	line-height: 16px;
+	padding: 0 2px;
+	border: 1px solid #E6E0C4;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+	max-width: 100%;
+	word-break: break-word;
+}
+
+#doc table {
+	border-spacing: 0;
+	color: currentColor;
+}
+#doc table, #doc table td, #doc table th {
+	border: 1px solid #f3f3f3;
+}
+#doc table td, #doc table th {
+	padding: 0.1em 0.5em;
+}
+#doc pre {
+	font-family: Consolas, Dejavu Sans Mono, Segoe UI Mono, Ubuntu Mono, Lucida Console, monospace;
+	font-size: 9pt;
+	line-height: 1.25;
+	background: white;
+	padding: 4px 2px 4px 10px;
+	margin: 0;
+	-moz-tab-size: 4;
+	tab-size: 4;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	word-break: break-all;
+}
+#doc pre a {
+	text-decoration: none;
+}
+#doc pre a:hover {
+	text-decoration: underline;
+}
+#doc abbr[title] {
+	text-decoration: underline;
+	-webkit-text-decoration-color: #bbb;
+	text-decoration-color: #bbb;
+	-webkit-text-decoration-style: double;
+	text-decoration-style: double;
+}
+#doc hr {
+	margin: 0.5em 0;
+	margin-right: 1em;
+	border: 0;
+	border-top: 2px dashed #f3f3f3;
+}
+#doc section + hr {
+	margin: 0;
+	height: 1em;
+	border: 1px solid #f3f3f3;
+	border-width: 1px 0 1px 0;
+}
+#doc section {
+	border-top: 1px solid #f3f3f3;
+	margin-top: 0.3em;
+}
+#doc section:first-child {
+	margin-top: 0em;
+}
+#doc section:last-child {
+	border-bottom: 1px solid #f3f3f3;
+}
+#doc section + section, #doc hr + section {
+	border-top: 0;
+	margin-top: 0;
+}
+#doc section + p {
+	border-top: 1px solid #f3f3f3;
+	padding-top: 0.3em;
+}
+/* delay display until load */
+#doc[ready] section:not(.open) > article {
+	display: none;
+}</style>
+<style type="text/css" id="lang_gml">/* GameMakerLanguage */
+pre.gmlmd .md { color: #7A81A9 } /* #define */
+pre.gmlmd .kw { color: #008; font-weight: bold } /* keyword */
+pre.gmlmd .co { color: #080 } /* comment */
+pre.gmlmd .nu { color: #F03232 } /* number */
+pre.gmlmd .nx { color: #00f } /* hex */
+pre.gmlmd .st { color: #00f } /* string */
+pre.gmlmd .ts { color: #00f } /* template string */
+pre.gmlmd .op { color: #000 } /* operator */
+pre.gmlmd .cb { color: #008; font-weight: bold } /* curly brace */
+pre.gmlmd .sv { color: #800 } /* std func */
+pre.gmlmd .sf { color: #800 } /* std var */
+pre.gmlmd .ri { color: #0078aa } /* assets */
+pre.gmlmd .uf { color: #808 } /* user func */
+pre.gmlmd .uv { color: #000 } /* user var */
+pre.gmlmd .lv { color: #648 } /* local var */
+pre.gmlmd .fd { color: #804 } /* field */
+
+pre.gmlmd a.uf {
+	background-color: #f7f0ff;
+}
+pre.gmlmd a.kw {
+	background-color: #f0f7ff;
+}
+pre.gmlmd a.sf, #doc pre a.sv {
+	background-color: #fff3f0;
+}
+
+#night:checked + .main pre.gmlmd .op { color: #CCCCCC }
+#night:checked + .main pre.gmlmd .co { color: #5B995B }
+#night:checked + .main pre.gmlmd .kw { color: #FFB871 }
+#night:checked + .main pre.gmlmd .md { color: #FFB871 }
+#night:checked + .main pre.gmlmd .cb { color: #FFB871 }
+#night:checked + .main pre.gmlmd .sf { color: #FFB871 }
+#night:checked + .main pre.gmlmd .uf { color: #FFB871 }
+#night:checked + .main pre.gmlmd .nu { color: #FF8080 }
+#night:checked + .main pre.gmlmd .st { color: #FCF320 }
+#night:checked + .main pre.gmlmd .ts { color: #FF8080 }
+#night:checked + .main pre.gmlmd .sv { color: #FF8080 }
+#night:checked + .main pre.gmlmd .gv { color: #FF80FF }
+#night:checked + .main pre.gmlmd .ri { color: #FF8080 }
+#night:checked + .main pre.gmlmd .lv { color: #FFF899 }
+#night:checked + .main pre.gmlmd .uv { color: #B2B1FF }
+#night:checked + .main pre.gmlmd .fd { color: #B2B1FF }
+
+#night:checked + .main pre.gmlmd a.uf,
+#night:checked + .main pre.gmlmd a.kw,
+#night:checked + .main pre.gmlmd a.sf {
+	background-color: #431;
+}
+#night:checked + .main pre.gmlmd a.sv {
+	background-color: #422;
+}</style>
+<style type="text/css" id="night_css">.main label[for="night"] {
+	cursor: pointer;
+}
+#night { display: none }
+#night:checked + .main {
+	background-color: #424242;
+}
+#night:checked + .main .page,
+#night:checked + .main .navmenu {
+	background-color: #1c1c1c;
+	border-color: #1c1c1c;
+	box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+	color: white;
+}
+#night:checked + .main a,
+#night:checked + .main a:visited,
+#night:checked + .main #doc header,
+#night:checked + .main label[for="night"] {
+	color: #9DEC76;
+}
+#night:checked + .main #doc header:before,
+#night:checked + .main #doc h3 {
+	border-color: #9DEC76
+}
+#night:checked + .main #doc header,
+#night:checked + .main #doc header:hover,
+#night:checked + .main #doc .sticky-side:hover,
+#night:checked + .main #doc article,
+#night:checked + .main #doc section,
+#night:checked + .main #doc section + p,
+#night:checked + .main #doc hr,
+#night:checked + .main #doc ul,
+#night:checked + .main #doc ol,
+#night:checked + .main #doc table,
+#night:checked + .main #doc table td,
+#night:checked + .main #doc table th
+{
+	border-color: rgba(205,225,255,0.1);
+}
+#night:checked + .main #doc header:hover,
+#night:checked + .main #doc .sticky-side:hover,
+#night:checked + .main #doc .asset:hover {
+	background: rgba(205,225,255,0.1);
+}
+#night:checked + .main article ul li {
+	list-style-image: url('data:image/svg+xml;base256,<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="20px" height="1em" viewBox="0 0 20px 1em"><circle cx="17px" cy="0.675em" r="2px" fill="white"/></svg>'); 
+}
+#night:checked + .main pre {
+	color: #cccccc;
+	background: #000000;
+	border: 1px solid #3E4757;
+}
+#night:checked + .main #doc code {
+	background-color: #000;
+	border-color: #5b7c9f;
+	color: white;
+}
+#night:checked + .main #doc .sticky-side,
+#night:checked + .main #doc .sticky-side:visited {
+	color: rgba(255, 255, 255, 0.3);
+}</style>
+<style type="text/css" id="print_css">@media print {
+	.main { background-color: transparent }
+	.display-controls { display: none; }
+	.page { width: 100%; box-shadow: none; }
+	#doc header::before,
+	#doc section.open header::before	{
+		content: "~";
+	}
+	#doc { display: inherit }
+	#doc section:not(.open) > article,
+	#doc[ready] section:not(.open) > article {
+		display: inherit;
+	}
+}</style>
+<noscript><style>#doc header::before {
+	content: "~";
+}
+#doc header:hover {
+	border-left-color: #f3f3f3;
+	background: inherit;
+}
+#doc { display: inherit }
+#doc section:not(.open) > article {
+	display: inherit;
+}</style></noscript>
+</head><body>
+<input type="checkbox" id="night" checked/>
+<div class="main ">
+<script type="text/javascript">(function() {
+	var night = document.getElementById("night");
+	var path = "docmd night mode";
+	var ls = window.localStorage;
+	var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+	if (ls) {
+		var item = ls.getItem(path);
+		night.checked = item ? item == "true" : dark;
+		night.onchange = function(_) {
+			ls.setItem(path, "" + night.checked);
+		};
+	} else night.checked = dark;
+})();</script>
+<main class="page">
+<section class="intro">
+This is documentation for the <a href="https://yal.cc/r/20/pixelfont/">Pixel Font Converter</a>!
+</section>
+<section class="display-controls">
+Click on sections to expand/collapse them.<br>Quick display controls:
+<a href="javascript:void(0)" onclick="opt_none(); return false">Categories</a>
+&middot; <a href="javascript:void(0)" onclick="opt_list(); return false">Sections</a>
+&middot; <a href="javascript:void(0)" onclick="opt_all(); return false">Everything</a>
+&middot; <a href="javascript:void(0)"><label for="night">Toggle night mode</label></a><br/>
+</section><section id="doc">
+<!--<doc--><p><p>
+
+<style>
+.main { background-color: #899FC6 }
+.page { box-shadow: 0 0 8px rgba(0, 0, 0, 0.3) }
+#night:checked + .main { background-color: #405070 }
+#night:checked + .main .page { background-color: #1A202D }
+</style>
+
+
+
+
+
+</p><section><header id="rules"><a href="#rules" title="(permalink)">Rules</a></header><article><a class="sticky-side" href="#rules" title="Rules"><span>Rules</span></a><p>
+	For purposes of this section, let's say that
+	&lt;arg&gt; marks a required argument and [arg] marks an optional argument.
+	</p><section><header id="r.comment"><a href="#r.comment" title="(permalink)"># comment</a></header><article><p>
+		For everyone's sanity, comments may only appear at line start, like so
+		</p><pre class="gmlmd">
+<span class="co"># this is a comment</span>
+	<span class="co"># this is a comment too</span>
+<span class="kw">keyword</span> # this is not a comment
+</pre></article></section><section><header id="r.glyph"><a href="#r.glyph" title="(permalink)">Glyph(s)</a></header><article><a class="sticky-side" href="#r.glyph" title="Glyph(s)"><span>Glyph(s)</span></a><p>
+		Some of the following rules accept one or more glyphs to apply them to.
+		</p><p>
+		A glyph can be written literally (if it is not a "space") character
+		or as an escape sequence.
+		</p><p>
+		Escape sequences start with a backslash <code>\</code> character.<br/>
+		The following escape sequences are supported:
+		</p><section><header id="r.esc.bs"><a href="#r.esc.bs" title="(permalink)">\\</a></header><article><p>
+			The backslash itself.
+		</p></article></section><section><header id="r.esc.nrt"><a href="#r.esc.nrt" title="(permalink)">\n, \r, \t</a></header><article><p>
+			Newline, carriage return, and tab characters respectively
+			(much like in most programming languages).
+		</p></article></section><section><header id="r.esc.hex2"><a href="#r.esc.hex2" title="(permalink)">\x12</a></header><article><p>
+			A 2-digit hexadecimal code point.
+			</p><p>
+			For example, <code>\x20</code> is a space and <code>\x71</code> is <code>q</code>.
+		</p></article></section><section><header id="r.esc.hex4"><a href="#r.esc.hex4" title="(permalink)">\u1234</a></header><article><p>
+			A 4-digit hexadecimal code point.
+			</p><p>
+			For example, <code>\u0457</code> is <code>ї</code>.
+		</p></article></section><section><header id="r.esc.hexn"><a href="#r.esc.hexn" title="(permalink)">\u{123...}</a></header><article><p>
+			A hexadecimal code point with any number of digits.
+			</p><p>
+			For example, <code>\u{457}</code> is <code>ї</code> and <code>\u{1F695}</code> is <code>🚕</code>.
+		</p></article></section><section><header id="r.esc.s"><a href="#r.esc.s" title="(permalink)">\s</a></header><article><p>
+			For rule arguments that support multiple code points,
+			this expands into a handful of common space characters.
+			</p><details><summary>These ones</summary>
+			</p><pre class="gmlmd">
+<span class="nu">0x09</span><span class="op">,</span> <span class="co">// HORIZONTAL TABULATION</span>
+<span class="nu">0x0B</span><span class="op">,</span> <span class="co">// VERTICAL TABULATION</span>
+<span class="nu">0x0C</span><span class="op">,</span> <span class="co">// FORM FEED</span>
+<span class="nu">0x20</span><span class="op">,</span> <span class="co">// SPACE</span>
+<span class="nu">0xA0</span><span class="op">,</span> <span class="co">// NO-BREAK SPACE</span>
+<span class="nu">0x1680</span><span class="op">,</span> <span class="co">// OGHAM SPACE MARK</span>
+<span class="nu">0x2000</span><span class="op">,</span> <span class="co">// EN QUAD</span>
+<span class="nu">0x2001</span><span class="op">,</span> <span class="co">// EM QUAD</span>
+<span class="nu">0x2002</span><span class="op">,</span> <span class="co">// EN SPACE</span>
+<span class="nu">0x2003</span><span class="op">,</span> <span class="co">// EM SPACE</span>
+<span class="nu">0x2004</span><span class="op">,</span> <span class="co">// THREE-PER-EM SPACE</span>
+<span class="nu">0x2005</span><span class="op">,</span> <span class="co">// FOUR-PER-EM SPACE</span>
+<span class="nu">0x2006</span><span class="op">,</span> <span class="co">// SIX-PER-EM SPACE</span>
+<span class="nu">0x2007</span><span class="op">,</span> <span class="co">// FIGURE SPACE</span>
+<span class="nu">0x2008</span><span class="op">,</span> <span class="co">// PUNCTUATION SPACE</span>
+<span class="nu">0x2009</span><span class="op">,</span> <span class="co">// THIN SPACE</span>
+<span class="nu">0x200A</span><span class="op">,</span> <span class="co">// HAIR SPACE</span>
+<span class="nu">0x202F</span><span class="op">,</span> <span class="co">// NARROW NO-BREAK SPACE</span>
+<span class="nu">0x205F</span><span class="op">,</span> <span class="co">// MEDIUM MATHEMATICAL SPACE</span>
+<span class="nu">0x3000</span><span class="op">,</span> <span class="co">// IDEOGRAPHIC SPACE</span>
+<span class="nu">0x200B</span><span class="op">,</span> <span class="co">// ZERO WIDTH SPACE</span>
+<span class="nu">0xFEFF</span><span class="op">,</span> <span class="co">// ZERO WIDTH NO-BREAK SPACE</span>
+</pre><p>
+			</details><p>
+			You will not receive warnings if some of these glyphs are not present in your font.
+		</p></article></section><section><header id="r.esc.range"><a href="#r.esc.range" title="(permalink)">\[a-z]</a></header><article><p>
+			For rule arguments that support multiple code points,
+			this expands into a range between the specified glyphs.
+		</p></article></section></article></section><section><header>ignore &lt;rule&gt; [glyph(s)</header><article><p>
+		Hides a specific warning/error.
+		</p><p>
+		For example,
+		</p><pre class="gmlmd">
+<span class="kw">ignore</span> past_ascent
+</pre><p>
+		will ignore the "glyph extends past ascent" warnings for all glyphs, and
+		</p><pre class="gmlmd">
+<span class="kw">ignore</span> past_ascent |⁺
+</pre><p>
+		will ignore it just for <code>|</code> and <code>⁺</code>.
+	</p></article></section><section><header id="r.hide"><a href="#r.hide" title="(permalink)">hide &lt;glyph(s)&gt;</a></header><article><p>
+		Hides the contours inside one or more glyphs!
+		</p><p>
+		But their pixels will still be measured for font metrics.
+		</p><p>
+		New and imported fonts start with
+		</p><pre class="gmlmd">
+<span class="kw">hide</span> \s
+</pre><p>
+		to hide all the space characters.
+	</p></article></section><section><header>kern &lt;left_glyph(s)&gt; &lt;right_glyph(s)&gt; &lt;x&gt; [y</header><article><p>
+		Defines a kerning pair between one or more pairs of characters!
+		</p><p>
+		X and (optional) Y are measured in pixels.
+		</p><p>
+		For example,
+		</p><pre class="gmlmd">
+<span class="kw">kern</span> T a -1
+</pre><p>
+		will move <code>a</code> one pixel closer when preceded by a <code>T</code>, and
+		</p><pre class="gmlmd">
+<span class="kw">kern</span> T/ ,. -1
+</pre><p>
+		will move <code>,</code> and <code>.</code> one pixel closer if they are preceded by <code>T</code> or <code>/</code> (4 pairs total).
+	</p></article></section><section><header id="r.left"><a href="#r.left" title="(permalink)">left &lt;glyph(s)&gt; &lt;spacing&gt;</a></header><article><p>
+		Adjusts spacing to the left of a character, measured in pixels.
+		</p><p>
+		For example,
+		</p><pre class="gmlmd">
+<span class="kw">left</span> ? 1
+</pre><p>
+		will add one pixel of space before a <code>?</code>, and
+		</p><pre class="gmlmd">
+<span class="kw">left</span> \u0303 -4
+</pre><p>
+		will move a combining tilde (like in ã)
+		4 pixels over the preceding letter.
+		</p><p>
+		This rule can also be written as <code>lsb</code> if you prefer.
+	</p></article></section><section><header id="r.right"><a href="#r.right" title="(permalink)">right &lt;glyph(s)&gt; &lt;spacing&gt;</a></header><article><p>
+		Adjusts spacing to the right of a character, measured in pixels.
+		</p><p>
+		For example,
+		</p><pre class="gmlmd">
+<span class="kw">right</span> .?! 3
+</pre><p>
+		will add a 3-pixel space after the punctuation signs, and
+		</p><pre>
+right ( -1
+</pre><p>
+		will move any character closer to a <code>(</code> by one pixel.
+		</p><p>
+		This rule can also be written as <code>rsb</code> if you prefer.
+	</p></article></section><section><header id="r.default_char"><a href="#r.default_char" title="(permalink)">default_char &lt;glyph&gt;</a></header><article><p>
+		Indicates glyph that should be displayed if the requested glyph wasn't found in the font.
+		</p><p>
+		Software quite commonly ignores this, so don't get too excited.
+		</p><p>
+		For example,
+		</p><pre class="gmlmd">
+<span class="kw">default_char</span> ?
+</pre><p>
+		would set the default character to <code>?</code>.
+		</p><p>
+		<strong>Specification:</strong> <a rel="nofollow" href="https://learn.microsoft.com/en-us/typography/opentype/spec/os2#usdefaultchar">MSDN</a>
+	</p></article></section></article></section></p><!--doc>-->
+</section>
+</main></div>
+<script type="text/javascript">(function() {
+	var doc, headers;
+	//
+	var path = "YAL's Pixel Font Converter documentation";
+	var state = null;
+	if (window.localStorage && JSON.parse) {
+		state = window.localStorage.getItem(path);
+		state = state ? JSON.parse(state) : { };
+		if (state == null) state = { };
+	}
+	var isLocal = (location.host.indexOf("localhost") == 0);
+	//
+	function h3bind(h3) {
+		var node = h3.parentNode;
+		var snip = node.children[1];
+		var id = h3.id || h3.textContent;
+		h3.snip = snip;
+		h3.doc_set = function(z) {
+			if (z) node.classList.add("open"); else node.classList.remove("open");
+			if (state) {
+				state[id] = z;
+				window.localStorage.setItem(path, JSON.stringify(state));
+			}
+		}
+		h3.doc_hide = function() {
+			this.doc_set(false);
+		}
+		h3.doc_show = function() {
+			this.doc_set(true);
+		}
+		h3.onclick = function(_) {
+			var seen = !node.classList.contains("open");
+			h3.doc_set(seen);
+			return false;
+		};
+	}
+	function getHashFunc(id) {
+		var node = document.getElementById(id);
+		if (node == null) return null;
+		return function(e) {
+			while (node && node != doc) {
+				if (node.classList.contains("item")) {
+					node.classList.add("open");
+				}
+				node = node.parentElement;
+			}
+		};
+	}
+	// Display helpers:
+	window.opt_none = function() {
+		for (var li = 0; li < headers.length; li++) headers[li].doc_hide();
+	};
+	window.opt_list = function() {
+		for (var li = 0; li < headers.length; li++) {
+			var h3 = headers[li];
+			if (h3.parentNode.parentNode != doc) {
+				h3.doc_hide();
+			} else h3.doc_show();
+		}
+	};
+	window.opt_all = function() {
+		for (var li = 0; li < headers.length; li++) headers[li].doc_show();
+	};
+	window.live_post = function() {
+		doc = document.getElementById("doc");
+		headers = doc.getElementsByTagName("header");
+		//
+		for (var i = 0; i < headers.length; i++) h3bind(headers[i]);
+		// Clicks in document expand the related section:
+		var anchors = doc.getElementsByTagName("a");
+		for (var i = 0; i < anchors.length; i++) {
+			var anchor = anchors[i];
+			if (anchor.classList.contains("header")) continue;
+			var href = anchor.getAttribute("href");
+			if (href[0] == "#") {
+				var fn = getHashFunc(href.substr(1));
+				if (!fn) {
+					anchor.classList.add("broken");
+					anchor.title = "(section missing)";
+				} else anchor.addEventListener("click", fn);
+			}
+		}
+		//
+		for (var li = 0; li < headers.length; li++) {
+			var h3 = headers[li];
+			var val = state ? state[h3.id || h3.textContent] : null;
+			if (val == null) val = isLocal || h3.parentNode.parentNode == doc;
+			if (val) h3.doc_show(); else h3.doc_hide();
+		}
+	};
+	window.live_post();
+	//
+	(function() {
+		var hash = document.location.hash;
+		if (hash) {
+			var _hash = hash.substr(1);
+			getHashFunc(_hash)();
+			setTimeout(function() {
+				document.location.hash = hash + " ";
+				setTimeout(function() {
+					document.location.hash = hash;
+				}, 100);
+			}, 100);
+		}
+	})();
+	//
+	doc.setAttribute("ready", "");
+	})();</script>
+</body></html>
