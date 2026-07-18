@@ -63,6 +63,9 @@ build/                            # generated output (git-ignored)
 patcher/                          # vendored Nerd Fonts font-patcher + glyph sets
 ```
 
+The `src/*.json` pixel-sheet format is documented field-by-field in
+[SOURCE-FORMAT.md](SOURCE-FORMAT.md).
+
 ## Requirements
 
 - [FontForge](https://fontforge.org/) with Python bindings (`brew install fontforge`)
@@ -73,11 +76,18 @@ patcher/                          # vendored Nerd Fonts font-patcher + glyph set
 ### Interactive
 
 ```bash
-./build.sh
+./build.sh              # interactive
+./build.sh --defaults   # non-interactive: take every default, ask nothing (-y works too)
 ```
 
 Walks you through: select strikes → optional features (small caps, old-style
 figures, Nerd Fonts, WOFF2).
+
+`--defaults` answers every prompt with its default and builds **all** strikes — handy
+for CI or a repeatable release build. The defaults are not all "yes" (version = keep,
+Nerd WOFF2 = no), which is why it isn't spelled `--yes`. Each prompt still prints the
+answer it assumed, so the log shows exactly what was built. Note it *does* build Nerd
+Fonts (that's the default), which is the slow part.
 
 Metadata (author, licence, URLs, type) is read from `default-metadata.json`, so the
 build does not ask for it. Edit that file to change it; delete it to get the prompts

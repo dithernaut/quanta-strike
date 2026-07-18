@@ -12,6 +12,28 @@ before doing anything.
   `src/quanta-strike-N/`. `png-to-ttf.py` turns that pair into the TTF, so the TTF is a
   **build artifact** — the PNG + JSON are the only real source. (The TTF used to be
   exported by hand; that step is now scripted, and the build is self-contained.)
+- **Two variants per strike, from the same source by default.** Every strike is built
+  twice:
+  - **mono** — `quanta-strike-N-mono`, the original fixed-advance behaviour
+    (advance = `(glyph-width + glyph-spacing) × 128`). Used for coding/TUIs; this is
+    the variant that gets Nerd Fonts. Its generation is unchanged, byte-for-byte.
+  - **proportional** — `quanta-strike-N` (the base name), each glyph trimmed to its own
+    ink (zero left side bearing, advance = `(ink-width + gap) × 128`). The gap is chosen
+    per strike in precedence order: `--spacing V` (forces all strikes) → the strike
+    JSON's `spacing` key → **`auto`**, which scales with strike size N (1px N≤10, 2px
+    11–18, 3px N>18; bigger strikes get more air). A `spacing` value is a pixel count or
+    `"auto"`. More legible for body text; `glyph-width` is now conceptually the *max*
+    width. No Nerd Fonts.
+  Both are still their own font families (mono and proportional are NOT styles of one
+  family) and both hold the pixel invariant below — trimming only removes whole empty
+  pixel columns, so widths stay on the 128 grid and the cross-strike pixel is untouched.
+  - **Optional dedicated mono sheet.** By default both variants build from the one
+    `quanta-strike-N.{png,json}`. If a strike also has a `quanta-strike-N-mono.{png,json}`
+    pair next to it, the **mono** variant is built from that sheet instead (the
+    proportional variant always uses the plain one). This lets a strike ship a
+    hand-tuned monospace design while keeping the shared source for everything else;
+    with no `-mono` sheet, mono just uses the plain source. (Generally: a variant with
+    a non-empty suffix uses `<family><suffix>.{png,json}` when both are present.)
 
 ## THE hard invariant (never break this)
 - **1 pixel = 128 font units**, always. Glyph coordinates are multiples of 128.
@@ -39,8 +61,12 @@ before doing anything.
   ascent line. Everything else follows from `N` and `D`.
 
 ## Build pipeline (`build.sh` orchestrates; scripts run via FontForge python)
-Order: `png-to-ttf → metadata → small caps → old-style figures → anchor-em →
-(optional scale) → guard → WOFF2 → Nerd`.
+The full pipeline (`png-to-ttf → metadata → small caps → old-style figures → anchor-em
+→ (optional scale) → guard`) runs **once per variant** — proportional first, then mono
+— via the `build_variant` helper, each into its own group dir. Then `WOFF2` (both
+variants at once) and finally `Nerd` (mono variant only, the slow step) run once at the
+end. `build_variant` swaps the `STAGE_DIR`/`TTF_GROUP_DIR` globals the `run_*` helpers
+read, so the per-step scripts below are variant-agnostic.
 - **png-to-ttf.py** — builds each strike's TTF from its PNG + JSON, replacing the old
   manual export step. Verified bit-identical to the reference TTFs on every strike —
   same contours, widths, cmap. Reads the geometry from the JSON, so the strike's cell
@@ -48,20 +74,39 @@ Order: `png-to-ttf → metadata → small caps → old-style figures → anchor-
   (a luminance threshold, NOT "is it black") — so light/transparent alignment guides in
   the art stay out of the font, but a DARK guide would become ink. Emits 1 px = 128
   units; never rescales. Standalone — the script's header documents every rule.
-  - It implements exactly what these sources use (`contour-type: pixel`, mono advance,
-    `hide`). Anything else — `contour-type: smart`, the `kern`/`left`/`right`/`ignore`/
-    `default_char` overrides, non-mono — is NOT implemented; it errors or warns rather
-    than guessing. 
-  - **Never writes into `src/`.** build.sh stages the TTFs in **`build/tmp/src/`**,
-    mirroring the `<family>/<style>/` layout the patcher expects; that dir is wiped at
-    the start of every run and is gitignored with the rest of `build/`. `src/` holds the
-    PNG + JSON only. Run standalone as `png-to-ttf.py <json> <out-dir>`; with no
-    out-dir it writes next to the JSON, so pass one unless you want it in src/.
+  - **`--proportional [--prop-gap V]`** switches from the default fixed mono advance to
+    per-glyph trimmed widths. `V` is a pixel count or **`auto`** (default): auto reads
+    the strike size N (= em/px) and picks 1/2/3px by size (1px N≤10, 2px 11–18, 3px N>18)
+    — so the smart-spacing policy lives here, where N is known, and standalone runs get
+    it too. This is a CLI flag, driven by build.sh per variant — NOT the JSON
+    `font-is-mono` key, which is untouched. Empty glyphs (space, `hide`) keep the mono
+    cell advance in both modes. Widths stay whole pixels, so the grid invariant holds
+    either way.
+  - It implements exactly what these sources use (`contour-type: pixel`, mono OR
+    proportional advance, `hide`). Anything else — `contour-type: smart`, the
+    `kern`/`left`/`right`/`ignore`/`default_char` overrides — is NOT implemented; it
+    errors or warns rather than guessing.
+  - **Never writes into `src/`.** build.sh stages the TTFs under **`build/tmp/`** (the
+    proportional variant in `build/tmp/src/`, the mono variant in `build/tmp/src-mono/`,
+    with the mono strikes staged under `<family>-mono/` folders so the patcher picks up
+    that family name), mirroring the `<family>/<style>/` layout the patcher expects. Only
+    png-to-ttf and the metadata patcher read it; everything after works off `build/ttf/`,
+    so build.sh **removes `build/tmp` at the end** of a successful build (and wipes it at
+    the start of each run too). Pass `--keep-tmp` to keep it for inspection. It's
+    gitignored with the rest of `build/`. `src/` holds the PNG + JSON only. Run standalone
+    as `png-to-ttf.py <json> <out-dir>`;
+    with no out-dir it writes next to the JSON, so pass one unless you want it in src/.
   - A strike with no PNG+JSON falls back to a prebuilt `src/<family>/regular/<family>.ttf`
     (copied into the staging dir); with neither, the build fails loudly.
 - **font-metadata-patcher.py** — names/version/license/OS2 class etc. NEVER touches
-  vertical metrics (keeps the pixel grid). `--flat` writes all strikes into one
-  `build/ttf/quanta-strike/` folder.
+  vertical metrics (keeps the pixel grid). `--flat` writes all strikes of one variant
+  into a single folder (`build/ttf/quanta-strike/` for proportional,
+  `build/ttf/quanta-strike-mono/` for mono). The internal family name comes from the
+  staging folder name, so the mono strikes (staged under `<family>-mono/`) get the
+  `-mono` family for free. `--type` is set per variant — `sans` (or `serif`) for
+  proportional, always `monospace` for mono — and is deliberately NOT read from
+  `default-metadata.json` (build_variant appends it last so it wins). The proportional
+  type can be set via a `prop-type` key in default-metadata.json (default `sans`).
   - Values come from **`default-metadata.json`** at the repo root; when it exists
     build.sh reads it and asks no metadata questions (delete it to get the prompts
     back). The one exception is the **version bump, which is ALWAYS asked** and must
@@ -95,18 +140,47 @@ Order: `png-to-ttf → metadata → small caps → old-style figures → anchor-
   and can't give "a bit bigger AND crisp" (crisp only at whole multiples ×2, ×3).
 - **verify-pixel-grid.py** — the GUARD. Asserts every strike shares the same `em/N`
   (same pixel) and all glyphs are on the 128 grid. Build refuses to ship if violated.
-- **generate-nerd-fonts / rename-family.py** — Nerd Font variants (`quanta-strike-N-nerd`),
-  vendored patcher in `patcher/`.
+- **generate-nerd-fonts / rename-family.py** — Nerd Font variants, vendored patcher in
+  `patcher/`. Run for the **mono variant only** (`quanta-strike-N-mono-nerd`), and last
+  because patching is the slow step.
 - **convert-woff2.py** — mirrors `build/ttf → build/woff2` (base only by default,
-  `--include-nerd` optional), via FontForge's native WOFF2.
+  `--include-nerd` optional), via FontForge's native WOFF2. One pass covers both variants
+  since it walks the whole `build/ttf` tree.
 
-Output: `build/ttf/quanta-strike/`, `build/ttf/quanta-strike-nerd/`, `build/woff2/quanta-strike/`.
+Output (per variant): proportional → `build/ttf/quanta-strike/`, `build/woff2/quanta-strike/`;
+mono → `build/ttf/quanta-strike-mono/`, `build/ttf/quanta-strike-mono-nerd/`,
+`build/woff2/quanta-strike-mono/`.
+
+## Non-interactive builds
+`./build.sh --defaults` (aliases `-y`, `--yes`, `--non-interactive`) answers every
+prompt with its DEFAULT and builds all strikes — both variants each — for CI /
+repeatable releases. Not called `--yes` because the defaults aren't all yes: version =
+keep, Nerd Fonts = no (opt-in). Prompts still print with the assumed answer so the log
+stays auditable. Any new prompt must honour `$NON_INTERACTIVE` or it will hang a
+non-interactive build.
+
+Two CLI flags pin the choices that would otherwise be prompted (both honoured in
+`--defaults` runs too):
+- **`--nerd-fonts`** (alias `--nerd`) — opt IN to Nerd Font generation (mono variant
+  only, the slow step). Off unless given, so a plain `--defaults` build skips it.
+- **`--spacing V`** — FORCE the proportional inter-glyph gap for every strike: a pixel
+  count, or `auto` (scale with strike size: 1px N≤10, 2px 11–18, 3px N>18). When omitted,
+  each strike falls back to its own JSON `spacing` key, then `auto` — so `--spacing`
+  overrides the per-strike JSON. Also settable repo-wide via a `spacing` key in
+  default-metadata.json (same force-all effect). Mono is unaffected (its packing is
+  `glyph-spacing`).
+So `./build.sh -y --spacing 2 --nerd-fonts` = non-interactive, fixed 2px proportional gap
+everywhere, with the mono Nerd variants; plain `./build.sh -y` lets each strike's JSON (or
+auto) decide.
 
 ## Sizing choice in build.sh
 Always anchors pixel-perfect first, then prompts `Scale factor on top [default 1]`.
 `1` = leave pixel-perfect (crisp). `>1` = uniform bigger (soft, pixel still identical).
 
 ## Using the fonts (CSS)
+- Pick a variant by family: `quanta-strike-N` (proportional, better for body text) or
+  `quanta-strike-N-mono` (fixed-width, for code/TUIs). Both share the same pixel; the
+  native-size rules below apply identically to either.
 - Use each strike at its native size: `font-size = N px` = `N/16 rem` on a 16px base
   (so `strike-16 = 1rem`, `strike-12 = 0.75rem`, `strike-14 = 0.875rem`, …).
 - **Size and family are a pair** — a rem value only gives 1px-per-pixel with its matching
@@ -115,6 +189,9 @@ Always anchors pixel-perfect first, then prompts `Scale factor on top [default 1
   strikes). Set `line-height` explicitly for uniform leading.
 
 ## Pixel-sheet source format (`src/*/*.json`)
+The full field-by-field reference (every key png-to-ttf reads, plus a minimal example) is
+in **[SOURCE-FORMAT.md](SOURCE-FORMAT.md)**. Summary below.
+
 The JSON sitting next to each PNG; `png-to-ttf.py` is the only thing that reads it.
 Keys of note: `in-glyphs` (rows of chars = PNG grid order, indexed by
 CODEPOINT — astral chars take one cell), `glyph-width`/`glyph-height` (cell size),
@@ -122,6 +199,9 @@ CODEPOINT — astral chars take one cell), `glyph-width`/`glyph-height` (cell si
 (x-origin within the cell), `glyph-baseline` (baseline row in cell), `font-px-size`
 (= 128 units/pixel), `font-em-square`, `contour-type: pixel`, `font-is-mono`,
 `overrides` (e.g. `hide \s` = keep the advance, drop the ink).
+- `spacing` (optional) — the **proportional** variant's inter-glyph gap for this strike:
+  a pixel count or `"auto"` (size-based). Read only when the build doesn't force one via
+  `--spacing`/default-metadata. The mono variant ignores it — mono uses `glyph-spacing`.
 - Cell (row, col) is at `(ofs_x + col*(width+sep_x), ofs_y + row*(height+sep_y))`.
   The PNG canvas is usually BIGGER than the grid — the slack is ignored, so don't
   expect image height to divide by the row count.

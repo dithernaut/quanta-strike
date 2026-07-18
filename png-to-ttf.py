@@ -15,6 +15,25 @@ The rules it encodes:
                     wound (x,y) (x+1,y) (x+1,y-1) (x,y-1) = clockwise
   advance (mono)   = (glyph-width + glyph-spacing) * font-px-size
 
+Two width modes, selected by --proportional (default off = mono):
+
+  mono (default)   every glyph gets the same advance above — the source's
+                   monospacing, byte-for-byte what it always produced.
+  proportional     each glyph is trimmed to its own ink: the empty columns on
+                   either side are dropped, the ink is shifted to a zero left
+                   side bearing, and the advance becomes
+                       (ink-width + gap) * font-px-size
+                   where gap is a fixed pixel count or "auto" (scales with the
+                   strike size N = em / font-px-size: 1px N<=10, 2px 11..18, 3px
+                   N>18 — bigger strikes get more air). Resolved in precedence
+                   order: an explicit --prop-gap, else the JSON `spacing` key
+                   (per strike), else "auto". glyph-width stays the cell/max
+                   width; glyph-spacing is NOT reused here (it is 0 for the mono
+                   packing, which would glue glyphs together). Empty glyphs
+                   (space, `hide`) keep the mono cell advance. Widths stay whole
+                   pixels, so the 128-unit grid — and the cross-strike pixel
+                   identity — is untouched.
+
 Note the ink test is a weighted-luminance threshold, not an equality check: a
 mid-tone counts as ink, so only LIGHT or TRANSPARENT alignment guides drawn in
 the art stay out of the font — a dark guide would become ink.
@@ -27,7 +46,7 @@ Vertical metrics are taken from the JSON, but anchor-em.py re-anchors them
 downstream anyway; what has to be right here is outlines, widths and cmap.
 
 Usage:
-    png-to-ttf.py SRC [OUT] [--family NAME]...
+    png-to-ttf.py SRC [OUT] [--family NAME]... [--proportional] [--prop-gap N]
 
     SRC   a src/ directory, a strike directory, or a .json file
     OUT   a directory to write <family>.ttf into (default: next to the JSON)
@@ -243,6 +262,26 @@ def parse_overrides(lines):
 
 # ── conversion ─────────────────────────────────────────────────────────────
 
+def smart_gap(n):
+    """Auto proportional gap by strike size N: 1px for N<=10, 2px for 11..18,
+    3px for N>18 — bigger strikes read better with a touch more spacing."""
+    if n <= 10:
+        return 1
+    if n <= 18:
+        return 2
+    return 3
+
+
+def resolve_prop_gap(prop_gap, n):
+    """Turn a --prop-gap value (an int, or "auto"/"smart") into a pixel count."""
+    if isinstance(prop_gap, str):
+        s = prop_gap.strip().lower()
+        if s in ("auto", "smart"):
+            return smart_gap(n)
+        prop_gap = int(s)
+    return int(prop_gap)
+
+
 def iter_cells(rows):
     """Walk in-glyphs, yielding (codepoint, row, col).
 
@@ -266,7 +305,7 @@ def iter_cells(rows):
             col += 1
 
 
-def convert(json_path, out_path, quiet=False):
+def convert(json_path, out_path, quiet=False, proportional=False, prop_gap=None):
     import json
 
     with open(json_path, encoding="utf-8") as fh:
@@ -294,9 +333,20 @@ def convert(json_path, out_path, quiet=False):
     image = decode_png(png_path)
     is_ink = ink_test(cfg.get("glyph-color", "black"), image)
     hidden = parse_overrides(cfg.get("overrides", []))
-    is_mono = cfg.get("font-is-mono", True)
     is_upper = cfg.get("font-is-upper", False)
     mono_width = (gw + cfg.get("glyph-spacing", 0)) * px
+
+    # Strike size N = em / px (e.g. 1792 / 128 = 14). Only used to resolve an
+    # "auto" proportional gap; the outlines themselves never depend on it.
+    strike_n = int(round(em / px)) if px else 0
+    # Proportional gap precedence: an explicit --prop-gap (caller-provided) wins;
+    # otherwise the JSON `spacing` key (per strike); otherwise "auto" (size-based).
+    # Only the proportional pass uses it — mono advance is glyph-spacing, so mono
+    # never consults `spacing` (and won't error on an odd value it would ignore).
+    gap_spec = prop_gap
+    if gap_spec is None:
+        gap_spec = cfg.get("spacing", cfg.get("prop-gap", "auto")) if proportional else "auto"
+    gap = resolve_prop_gap(gap_spec, strike_n)
 
     font = fontforge.font()
     font.encoding = "UnicodeFull"
@@ -329,23 +379,41 @@ def convert(json_path, out_path, quiet=False):
         if x0 >= image.width or y0 >= image.height or x0 + gw > image.width or y0 + gh > image.height:
             out_of_bounds.append(chr(cp))
 
-        # Read the cell, then turn each filled pixel into its own square.
-        contours = []
+        # Collect the cell's ink pixels once (as (col, row) within the cell).
+        ink_px = []
         if cp not in hidden:
             for r in range(gh):
                 for c in range(gw):
-                    if not is_ink(*image.pixel(x0 + c, y0 + r)):
-                        continue
-                    left = (c - base_x) * px
-                    top = (baseline - r) * px
-                    right, bottom = left + px, top - px
-                    contour = fontforge.contour()
-                    contour.moveTo(left, top)       # clockwise in y-up:
-                    contour.lineTo(right, top)      # TL -> TR -> BR -> BL
-                    contour.lineTo(right, bottom)
-                    contour.lineTo(left, bottom)
-                    contour.closed = True
-                    contours.append(contour)
+                    if is_ink(*image.pixel(x0 + c, y0 + r)):
+                        ink_px.append((c, r))
+
+        # Choose the x-origin and advance. Mono keeps the fixed cell metrics;
+        # proportional trims to the ink (zero left side bearing + a fixed gap),
+        # so an inked glyph is exactly as wide as it draws. Empty glyphs (space,
+        # hidden) have no ink to measure and keep the mono cell advance either
+        # way. Widths stay whole pixels, so the 128-unit grid is preserved.
+        if proportional and ink_px:
+            c_min = min(c for c, _ in ink_px)
+            c_max = max(c for c, _ in ink_px)
+            x_origin = c_min
+            advance = (c_max - c_min + 1 + gap) * px
+        else:
+            x_origin = base_x
+            advance = mono_width
+
+        # Turn each filled pixel into its own square, relative to x_origin.
+        contours = []
+        for c, r in ink_px:
+            left = (c - x_origin) * px
+            top = (baseline - r) * px
+            right, bottom = left + px, top - px
+            contour = fontforge.contour()
+            contour.moveTo(left, top)       # clockwise in y-up:
+            contour.lineTo(right, top)      # TL -> TR -> BR -> BL
+            contour.lineTo(right, bottom)
+            contour.lineTo(left, bottom)
+            contour.closed = True
+            contours.append(contour)
 
         targets = [cp]
         if is_upper:
@@ -359,7 +427,7 @@ def convert(json_path, out_path, quiet=False):
             for contour in contours:
                 layer += contour
             glyph.foreground = layer
-            glyph.width = mono_width if is_mono else (gw + cfg.get("glyph-spacing", 0)) * px
+            glyph.width = advance
             n_glyphs += 1
             n_ink += len(contours)
 
@@ -380,8 +448,10 @@ def convert(json_path, out_path, quiet=False):
     font.close()
 
     if not quiet:
+        gap_note = f"{gap}px gap, auto" if str(gap_spec).lower() in ("auto", "smart") else f"{gap}px gap"
+        adv = f"proportional (+{gap_note})" if proportional else f"mono {mono_width}"
         print(f"  {os.path.basename(out_path)}: {n_glyphs} glyphs, {n_ink} pixels, "
-              f"em {em}, advance {mono_width}")
+              f"em {em}, advance {adv}")
     return out_path
 
 
@@ -425,6 +495,14 @@ def main():
                     help="directory to write <family>.ttf into (default: next to the JSON)")
     ap.add_argument("--family", action="append", default=[],
                     help="only build this strike (repeatable)")
+    ap.add_argument("--proportional", action="store_true",
+                    help="trim each glyph to its ink (proportional widths) "
+                         "instead of the fixed mono advance")
+    ap.add_argument("--prop-gap", default=None,
+                    help="proportional inter-glyph gap: a pixel count, or 'auto' "
+                         "to scale it with the strike size N (1px N<=10, 2px "
+                         "11..18, 3px N>18). If omitted, the JSON `spacing` key is "
+                         "used, else 'auto'.")
     ap.add_argument("--quiet", action="store_true")
     args = ap.parse_args()
 
@@ -438,7 +516,8 @@ def main():
             out_path = os.path.join(args.out, family + ".ttf")
         else:
             out_path = os.path.splitext(json_path)[0] + ".ttf"
-        convert(json_path, out_path, quiet=args.quiet)
+        convert(json_path, out_path, quiet=args.quiet,
+                proportional=args.proportional, prop_gap=args.prop_gap)
 
     return 0
 
