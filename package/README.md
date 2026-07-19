@@ -1,0 +1,89 @@
+# @dithernaut/quanta-strike
+
+A pixel typeface with one font per size. A "bitmap" font for the modern web.
+
+It ships a separate font for each size, and each one is drawn by hand. 
+
+```bash
+npm install @dithernaut/quanta-strike
+```
+
+## Use it
+
+Import the CSS, then use the class.
+
+```js
+import "@dithernaut/quanta-strike";
+```
+
+```html
+<p class="qs-16">Sharp at sixteen pixels.</p>
+<code class="qs-12-mono">const pixel = 1;</code>
+```
+
+That is the whole setup. The class sets the family and the size together.
+
+Import one size instead of all eight if you only need one:
+
+```js
+import "@dithernaut/quanta-strike/16.css";
+```
+
+## Sizes
+
+The package ships eight strikes: `6`, `10`, `12`, `14`, `16`, `18`, `20`, `32`.
+
+Each strike gets two classes.
+
+| class | use for |
+|-------|---------|
+| `.qs-16` | body text and UI |
+| `.qs-16-mono` | code and terminals |
+
+Swap the number for any size in the list.
+
+## The one rule
+
+The size and the family go together. `quanta-strike-16` is sharp at 16px and
+blurry everywhere else. The `.qs-16` class binds both, so use the class and you
+stay safe.
+
+If you write your own CSS, keep them in the same rule:
+
+```css
+.headline {
+  font-family: var(--font-strike-32);
+  font-size: 32px;
+}
+```
+
+Never set the size on its own. Never set the family on its own.
+
+## Responsive text
+
+You cannot scale this font with `clamp()`. Change the size and you must change the
+family too. So swap the whole class at a breakpoint:
+
+```css
+.title { font-family: var(--font-strike-16); font-size: 16px; }
+
+@media (min-width: 48rem) {
+  .title { font-family: var(--font-strike-32); font-size: 32px; }
+}
+```
+
+## What you get
+
+- `@dithernaut/quanta-strike` loads every strike.
+- `@dithernaut/quanta-strike/16.css` loads one strike.
+- `--font-strike-16` and `--font-strike-16-mono` custom properties for every size.
+- `.qs-16` and `.qs-16-mono` classes for every size.
+
+## Licence
+
+SIL Open Font License 1.1. See `OFL.txt`.
+
+Read the full story at
+[dithernaut.com/posts/pixel-scaling](https://dithernaut.com/posts/pixel-scaling).
+Source and build pipeline at
+[github.com/dithernaut/quanta-strike](https://github.com/dithernaut/quanta-strike).

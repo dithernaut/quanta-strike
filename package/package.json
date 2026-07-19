@@ -1,0 +1,54 @@
+{
+  "name": "@dithernaut/quanta-strike",
+  "version": "0.1.0",
+  "description": "A pixel typeface with one font per size. Every strike is drawn by hand and stays sharp at the size it was drawn for.",
+  "keywords": [
+    "font",
+    "pixel-font",
+    "bitmap-font",
+    "typeface",
+    "webfont",
+    "woff2",
+    "pixel-art",
+    "monospace",
+    "css"
+  ],
+  "homepage": "https://github.com/dithernaut/quanta-strike#readme",
+  "bugs": "https://github.com/dithernaut/quanta-strike/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dithernaut/quanta-strike.git",
+    "directory": "package"
+  },
+  "author": "dithernaut (https://dithernaut.com)",
+  "license": "OFL-1.1",
+  "type": "module",
+  "sideEffects": [
+    "*.css"
+  ],
+  "exports": {
+    ".": "./quanta-strike.css",
+    "./quanta-strike.css": "./quanta-strike.css",
+    "./utilities.css": "./utilities.css",
+    "./6.css": "./6.css",
+    "./10.css": "./10.css",
+    "./12.css": "./12.css",
+    "./14.css": "./14.css",
+    "./16.css": "./16.css",
+    "./18.css": "./18.css",
+    "./20.css": "./20.css",
+    "./32.css": "./32.css",
+    "./fonts/*": "./fonts/*",
+    "./OFL.txt": "./OFL.txt",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "*.css",
+    "fonts/",
+    "OFL.txt",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

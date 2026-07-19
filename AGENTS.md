@@ -111,6 +111,18 @@ read, so the per-step scripts below are variant-agnostic.
     build.sh reads it and asks no metadata questions (delete it to get the prompts
     back). The one exception is the **version bump, which is ALWAYS asked** and must
     never be moved into the defaults — it's a per-release decision, not a constant.
+  - **The version itself lives in `VERSION`** (repo root, tracked, one semver line).
+    It is the single source of truth for the release number. The prompt still asks
+    every build — that rule is unchanged — but it now asks *relative to* `VERSION`,
+    and a successful build writes the result back. Every strategy, INCLUDING "keep",
+    passes an explicit `--version` to the patcher: png-to-ttf rebuilds each TTF from
+    scratch, so with no flag the font silently falls back to FontForge's default 1.0
+    and "keep" would reset the release number instead of keeping it. Do NOT read the
+    current version out of `build/ttf/` — that's a git-ignored artifact, so wiping
+    `build/` would lose the version history.
+  - `build-package.sh` reads the version back out of a built TTF and writes it into
+    `package/package.json`, so the npm package can never drift from the fonts it
+    ships. The chain is `VERSION` → fonts → package. Nothing publishes automatically.
   - Author is `dithernaut` / dithernaut.com; licence is **OFL-1.1**, the only practical
     choice since Google Fonts accepts only OFL-1.1 / Apache-2.0 / UFL (not MIT, not
     Creative Commons). OFL permits donations and bundling; it forbids selling the font

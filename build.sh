@@ -18,6 +18,7 @@ NC='\033[0m' # No Color
 # Default directories
 SRC_DIR="./src"
 BUILD_DIR="./build"
+VERSION_FILE="./VERSION"
 TTF_DIR="$BUILD_DIR/ttf"
 TTF_GROUP_DIR="$TTF_DIR/quanta-strike"
 
@@ -493,6 +494,24 @@ run_woff2() {
     fi
 }
 
+# Emit the ready-to-use CSS next to the WOFF2 output. The classes it writes bind
+# each strike's family to its size, which is the one thing a consumer must not
+# get wrong. Needs the WOFF2 step to have run — it reads the built files.
+run_generate_css() {
+    print_info "Generating CSS for the web fonts..."
+
+    local cmd="python3 generate-css.py '$BUILD_DIR/woff2'"
+    echo -e "  ${DIM}$cmd${NC}"
+
+    if eval "$cmd"; then
+        print_success "CSS generated"
+        return 0
+    else
+        print_error "CSS generation failed"
+        return 1
+    fi
+}
+
 # Verify the pixel-grid invariant (em == N*128, glyphs on the 128 grid) for one
 # or more targets. Refuses to continue if any strike would render a pixel that
 # is not exactly 1.0000px at its native size.
@@ -617,12 +636,33 @@ for fname in sorted(os.listdir(fdir)):
 " 2>/dev/null
 }
 
+# The release number lives in a tracked VERSION file, not in the fonts. The fonts
+# are build artifacts under a git-ignored build/, so reading the version back out
+# of them loses it the moment someone wipes the folder.
+read_project_version() {
+    if [ -f "$VERSION_FILE" ]; then
+        tr -d '[:space:]' < "$VERSION_FILE"
+    fi
+}
+
+# Record whatever version this build stamped, so it can be written back.
+RESOLVED_VERSION=""
+
+write_project_version() {
+    [ -z "$RESOLVED_VERSION" ] && return 0
+    local current
+    current=$(read_project_version)
+    [ "$current" = "$RESOLVED_VERSION" ] && return 0
+    printf '%s\n' "$RESOLVED_VERSION" > "$VERSION_FILE"
+    print_success "Version $current → $RESOLVED_VERSION (written to $VERSION_FILE)"
+}
+
 # Compute bumped version for a family based on VERSION_STRATEGY
 # Usage: compute_version "picosans"  → prints --version flag or empty string
 compute_version_flag() {
     local family="$1"
     local current_version
-    current_version=$(get_family_version "$family")
+    current_version=$(read_project_version)
 
     case "$VERSION_STRATEGY" in
         1|2|3)
@@ -641,15 +681,23 @@ compute_version_flag() {
                 3) new_version="$((major + 1)).0.0" ;;
             esac
             echo "--version '$new_version'"
+            RESOLVED_VERSION="$new_version"
             print_info "$family: $current_version → $new_version" >&2
             ;;
         4)
             if [ -n "$VERSION_CUSTOM" ]; then
                 echo "--version '$VERSION_CUSTOM'"
+                RESOLVED_VERSION="$VERSION_CUSTOM"
             fi
             ;;
         *)
-            # keep — no flag
+            # keep — still stamp it. png-to-ttf builds each TTF from scratch, so
+            # without an explicit --version the font falls back to FontForge's
+            # default of 1.0 and "keep" would silently reset the release number.
+            if [ -n "$current_version" ]; then
+                echo "--version '$current_version'"
+                RESOLVED_VERSION="$current_version"
+            fi
             ;;
     esac
 }
@@ -707,6 +755,7 @@ PY
 ask_version() {
     echo
     print_header "Version"
+    print_info "Current: ${BOLD}$(read_project_version)${NC} ${DIM}(from $VERSION_FILE)${NC}"
     echo "    1) patch bump"
     echo "    2) minor bump"
     echo "    3) major bump"
@@ -1068,6 +1117,9 @@ main() {
     if [ "$do_woff2" = true ]; then
         run_woff2 false
         echo
+        # Drop-in CSS for the web fonts. Cheap, so it always follows a WOFF2 run.
+        run_generate_css
+        echo
     fi
 
     # Nerd Fonts LAST, and for the MONO variant only. The mono family names carry
@@ -1087,6 +1139,9 @@ main() {
 
     local processed_count=${#selected_families[@]}
 
+    # ─── Version: persist what this build stamped, now that it succeeded ───────
+    write_project_version
+
     # ─── Licence: must ship with the fonts (do this after every output exists) ──
     run_copy_license
     echo
@@ -1103,6 +1158,7 @@ main() {
     # ─── Summary ──────────────────────────────────────────────────────
     echo
     print_header "Done!"
+    print_success "Version ${BOLD}$(read_project_version)${NC}"
     print_success "Built $processed_count strike(s) × 2 variants:"
     print_success "  proportional ($PROP_TYPE, $gap_desc) → $prop_group"
     print_success "  mono → $mono_group"
@@ -1113,6 +1169,7 @@ main() {
         print_success "Scaled family by ×$scale_factor on top (pixel identical across strikes)"
     fi
     [ "$do_woff2" = true ] && print_success "Exported WOFF2 web fonts (both variants)"
+    [ "$do_woff2" = true ] && print_success "Wrote drop-in CSS → $BUILD_DIR/woff2/quanta-strike.css"
     [ "$do_nerd" = true ] && print_success "Generated Nerd Font variants (mono only): ${selected_families[*]}"
     [ "$do_woff2_nerd" = true ] && print_success "Exported Nerd Font WOFF2 variants"
     [ -f "$LICENSE_FILE" ] && print_success "Shipped $LICENSE_FILE with the fonts (required by the OFL)"

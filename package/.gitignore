@@ -1,0 +1,6 @@
+# Everything here comes from ../build-package.sh. Only package.json and
+# README.md are source.
+fonts/
+*.css
+OFL.txt
+*.tgz
