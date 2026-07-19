@@ -1,70 +1,118 @@
 # quanta-strike
 
-A pixel typeface drawn as pixel sheets and compiled straight to fonts, shipped as a
-set of **strikes** — `quanta-strike-8`, `-12`, `-16`, `-20`, `-24` — plus a build
-pipeline that adds proper metadata and derived OpenType features.
+A modern pixel typeface. I draw each size by hand. Most fonts take one design and stretch
+it to every size. quanta-strike does not. It ships a family of *strikes*. Each strike is
+its own pixel design, drawn for one target size. Text stays crisp at the size you drew it
+for. It resamples nothing.
 
-## What a "strike" is
+The build works straight from pixel sheets. Each strike is a PNG plus a JSON file. A
+pipeline compiles that pair into fonts. It adds proper metadata and extra OpenType
+features along the way.
 
-Each strike is tuned for one rendering size:
+📖 **Read the full story:** [dithernaut.com/posts/pixel-scaling](https://dithernaut.com/posts/pixel-scaling)
 
-| strike | use at `font-size` |
-|--------|--------------------|
-| `quanta-strike-8`  | `8px`  |
-| `quanta-strike-12` | `12px` |
-| `quanta-strike-16` | `16px` |
-| `quanta-strike-20` | `20px` |
-| `quanta-strike-24` | `24px` |
+> This is a starting point. The family will grow. Today it ships **8 strikes**: **6, 10,
+> 12, 14, 16, 18, 20, and 32**. Use each one at its matching pixel size.
 
-They are **separate font families** (not weights/styles of one family) so each is
-trivial to target in CSS.
+## Why it exists
 
-### The pixel-alignment guarantee
+A pixel font has one job. Every pixel must land on the screen's pixel grid. Then the art
+stays sharp. Scaling breaks this.
 
-Every strike uses a fixed grid: **1 source pixel = 128 font units**, and the em is
-an exact whole number of pixels (`em = strike# × 128`). Rendered at its nominal
-size, one pixel is therefore exactly **1 CSS px**:
+A normal font is one set of outlines. The renderer resizes those outlines to any size you
+ask for. Smooth typefaces handle that fine. A pixel design does not. It looks right at one
+size only. That size lines its pixels up with the device grid. Ask for another size and
+the renderer has to resample. Pixel edges fall between device pixels. The rasterizer
+smears them with anti-aliasing. Your crisp blocky art turns muddy. One pixel design cannot
+stay sharp at 12px and 16px and 20px. The grids do not line up.
+
+quanta-strike takes a different path. It stops scaling. I draw each size on purpose. Every
+strike sits on a grid where 1 source pixel equals 128 font units. The em holds a whole
+number of pixels. For `quanta-strike-N` the em is N times 128. Render a strike at its own
+size and one source pixel equals exactly 1 CSS px:
 
 ```
 pixel size in CSS px = font-size × 128 / em = N × 128 / (N × 128) = 1.0
 ```
 
-So a strike used at its size lands perfectly on the device pixel grid, and one
-pixel of `quanta-strike-8` @ 8px is the same size as one pixel of
-`quanta-strike-12` @ 12px — they align.
+So each strike lands on the device pixel grid at its own size. No resampling. No blur.
+Every strike shares the same units per pixel. One pixel of `quanta-strike-12` at 12px
+matches the physical size of one pixel of `quanta-strike-20` at 20px. I draw them apart.
+They still line up.
 
-**Because of this, the pipeline never alters vertical metrics** (em / ascent /
-descent / line gap). It only rewrites naming/metadata and adds glyph features.
-Changing the em (e.g. "tightening" the line height) would push pixels off the
-grid and blur them, so it is deliberately not done here.
+## What a "strike" is
+
+Each strike targets one rendering size. Each strike is its own font family. It is not a
+weight or a style of a shared family. So you target it directly in CSS.
+
+| strike | use at `font-size` | rem @ 16px base |
+|--------|--------------------|-----------------|
+| `quanta-strike-6`  | `6px`  | `0.375rem` |
+| `quanta-strike-10` | `10px` | `0.625rem` |
+| `quanta-strike-12` | `12px` | `0.75rem`  |
+| `quanta-strike-14` | `14px` | `0.875rem` |
+| `quanta-strike-16` | `16px` | `1rem`     |
+| `quanta-strike-18` | `18px` | `1.125rem` |
+| `quanta-strike-20` | `20px` | `1.25rem`  |
+| `quanta-strike-32` | `32px` | `2rem`     |
+
+Size and family go together. A rem value gives you one pixel per pixel only with its
+matching family. Bind them in one CSS class. Never expose the size on its own.
+
+### Two variants per strike
+
+The build makes every strike twice from the same art:
+
+- **proportional** (`quanta-strike-N`) trims each glyph to its own ink. Use it for body
+  text and UI.
+- **mono** (`quanta-strike-N-mono`) fixes the advance width. Use it for code, terminals,
+  and TUIs. This variant also gets Nerd Font icons.
+
+Both stay separate families. Mono is not a style of the proportional family. Both hold the
+pixel grid. Trimming only drops whole empty pixel columns. Widths stay on the 128 grid.
+The cross-strike pixel never moves.
+
+### The pixel-alignment guarantee
+
+Landing on the grid is the whole point. So the pipeline never changes vertical metrics. It
+leaves the em, ascent, descent, and line gap alone. It only rewrites naming and metadata
+and adds glyph features. Changing the em would push pixels off the grid and blur them. So
+it never does.
 
 ```css
-@font-face { font-family: "quanta-strike-8";  src: url("woff2/quanta-strike/quanta-strike-8-regular.woff2")  format("woff2"); }
-@font-face { font-family: "quanta-strike-12"; src: url("woff2/quanta-strike/quanta-strike-12-regular.woff2") format("woff2"); }
+@font-face { font-family: "quanta-strike-16";      src: url("woff2/quanta-strike/quanta-strike-16-regular.woff2")      format("woff2"); }
+@font-face { font-family: "quanta-strike-16-mono";  src: url("woff2/quanta-strike-mono/quanta-strike-16-mono-regular.woff2") format("woff2"); }
 
-.qs-8  { font-family: "quanta-strike-8";  font-size: 8px;  line-height: 1; }
-.qs-12 { font-family: "quanta-strike-12"; font-size: 12px; line-height: 1; }
+/* proportional, for body text */
+.qs-16      { font-family: "quanta-strike-16";      font-size: 16px; line-height: 1; }
+/* mono, for code */
+.qs-16-mono { font-family: "quanta-strike-16-mono"; font-size: 16px; line-height: 1; }
 ```
+
+The fonts ship with tight line metrics based on the ink. Set `line-height` yourself if you
+want uniform leading.
 
 ## Layout
 
 ```
-src/                              # authored art (input) — never modified by the build
-  quanta-strike-8/regular/quanta-strike-8.{json,png}
-  quanta-strike-12/...
+src/                              # authored art. the build never touches it
+  quanta-strike-6/regular/quanta-strike-6.{json,png}
+  quanta-strike-10/...
   ...
-build/                            # generated output (git-ignored)
-  tmp/src/                        #   TTFs compiled from the PNG + JSON (staging)
+build/                            # generated output. git-ignored
+  tmp/                            #   TTFs compiled from PNG + JSON. staging, removed on success
   ttf/
-    quanta-strike/                #   all base strikes, one folder
-    quanta-strike-nerd/           #   Nerd Font-patched strikes
+    quanta-strike/                #   proportional strikes, one folder
+    quanta-strike-mono/           #   mono strikes
+    quanta-strike-mono-nerd/      #   Nerd Font-patched mono strikes. opt-in
   woff2/
-    quanta-strike/                #   web fonts (base strikes; nerd excluded by default)
+    quanta-strike/                #   proportional web fonts
+    quanta-strike-mono/           #   mono web fonts
 patcher/                          # vendored Nerd Fonts font-patcher + glyph sets
 ```
 
-The `src/*.json` pixel-sheet format is documented field-by-field in
-[SOURCE-FORMAT.md](SOURCE-FORMAT.md).
+[SOURCE-FORMAT.md](SOURCE-FORMAT.md) documents the `src/*.json` pixel-sheet format field by
+field.
 
 ## Requirements
 
@@ -73,91 +121,64 @@ The `src/*.json` pixel-sheet format is documented field-by-field in
 
 ## Build
 
-### Interactive
-
 ```bash
-./build.sh              # interactive
-./build.sh --defaults   # non-interactive: take every default, ask nothing (-y works too)
+./build.sh                       # interactive
+./build.sh --defaults            # non-interactive. take every default, ask nothing (-y works too)
+./build.sh -y --nerd-fonts       # add Nerd Font icons (mono variant, the slow step)
+./build.sh -y --spacing 2        # force a fixed 2px proportional gap on every strike
 ```
 
-Walks you through: select strikes → optional features (small caps, old-style
-figures, Nerd Fonts, WOFF2).
+The interactive build walks you through it. You pick strikes and optional features. The
+build makes both variants for each strike. It does proportional first, then mono. Then it
+writes WOFF2 for both. Then it patches Nerd Fonts for the mono variant, but only if you opt
+in.
 
-`--defaults` answers every prompt with its default and builds **all** strikes — handy
-for CI or a repeatable release build. The defaults are not all "yes" (version = keep,
-Nerd WOFF2 = no), which is why it isn't spelled `--yes`. Each prompt still prints the
-answer it assumed, so the log shows exactly what was built. Note it *does* build Nerd
-Fonts (that's the default), which is the slow part.
+`--defaults` answers every prompt with its default. It builds all strikes. Use it for CI or
+a repeatable release. The defaults are not all "yes". Version keeps. Nerd Fonts stay off.
+That is why the flag is not `--yes`. Each prompt still prints the answer it took, so the log
+stays clear.
 
-Metadata (author, licence, URLs, type) is read from `default-metadata.json`, so the
-build does not ask for it. Edit that file to change it; delete it to get the prompts
-back. The **version bump is always asked** — it's a per-release choice, so it
-deliberately isn't stored as a default.
-
-### Manual / scripted
-
-```bash
-# 0) Compile each strike's PNG + JSON into a TTF (src/ stays art-only)
-python3 png-to-ttf.py src/quanta-strike-8/regular/quanta-strike-8.json \
-    build/tmp/src/quanta-strike-8/regular
-
-# 1) Metadata — all strikes into one folder: build/ttf/quanta-strike/
-fontforge -lang=py -script font-metadata-patcher.py \
-    --src build/tmp/src --output build/ttf/quanta-strike --flat \
-    --lowercase --type monospace \
-    --designer "dithernaut" --designerurl "https://dithernaut.com" \
-    --license "Copyright 2026 The quanta-strike Project Authors (https://dithernaut.com)" \
-    --licensedesc "This Font Software is licensed under the SIL Open Font License, Version 1.1." \
-    --licenseurl "https://openfontlicense.org"
-
-# 2) Small caps (smcp + c2sc) from existing glyphs, in place
-python3 add-small-caps.py --src build/ttf/quanta-strike --source phonetic      # or: lowercase | capital
-
-# 3) Old-style figures (onum) from existing glyphs, in place
-python3 add-old-style-figures.py --src build/ttf/quanta-strike --source circled # or: superscript | subscript | lining
-
-# 4) Nerd Fonts -> build/ttf/quanta-strike-nerd/ (each keeps its own "<strike>-nerd" family)
-#    build.sh runs this last and only for the strikes you selected
-./generate                                       # all strikes
-./generate-nerd-fonts build/ttf/quanta-strike    # equivalent, explicit
-./generate-nerd-fonts build/ttf/quanta-strike build/ttf/quanta-strike-nerd quanta-strike-8  # one strike
-
-# 5) WOFF2 -> build/woff2/  (base strikes only by default)
-fontforge -lang=py -script convert-woff2.py build/ttf build/woff2
-fontforge -lang=py -script convert-woff2.py build/ttf build/woff2 --include-nerd   # also convert nerd
-```
+The build reads metadata from `default-metadata.json`: author, licence, URLs, and type. So
+it does not ask. Edit that file to change it. Delete it to get the prompts back. The build
+always asks for the version bump. The version is a per-release choice, so it stays out of
+the defaults.
 
 ## Scripts
 
 | script | does |
 |--------|------|
-| `png-to-ttf.py`            | Compiles a strike's PNG + JSON pixel sheet into a TTF (1 pixel = 128 units). The TTF is a build artifact, so `src/` only holds the art. |
-| `default-metadata.json`    | Not a script — the author/licence/URL defaults `build.sh` applies instead of prompting. Delete it to be asked interactively. |
-| `font-metadata-patcher.py` | Sets family/style names, OS-2, weight/width, version, copyright & URLs. `--flat` writes all strikes into one folder. **Never touches metrics** (preserves pixel alignment). |
-| `add-small-caps.py`        | Adds `smcp`/`c2sc` OpenType features, sourced from phonetic small-caps, lowercase, or capital glyphs. |
-| `add-old-style-figures.py` | Adds the `onum` feature, mapping digits to circled / superscript / subscript figures. |
-| `generate-nerd-fonts`      | Patches every `.ttf` in a folder with Nerd Font icons into a sibling `-nerd` folder. |
-| `generate`                 | Runs the Nerd Font patcher over `build/ttf/quanta-strike`. |
-| `convert-woff2.py`         | Mirrors `build/ttf/**` to `build/woff2/**` as WOFF2 (skips `-nerd` unless `--include-nerd`). |
-| `rename-family.py`         | Helper: sets a font's family/style naming while preserving other metadata. |
+| `png-to-ttf.py`            | Compiles a strike's PNG plus JSON into a TTF. 1 pixel becomes 128 units. The TTF is a build artifact, so `src/` holds only the art. `--proportional` trims each glyph instead of using the mono advance. |
+| `default-metadata.json`    | Not a script. Holds the author, licence, and URL defaults `build.sh` applies instead of prompting. Delete it to answer by hand. |
+| `font-metadata-patcher.py` | Sets family and style names, OS-2, weight, width, version, copyright, and URLs. `--flat` writes all strikes of one variant into one folder. It never touches metrics, so pixel alignment holds. |
+| `add-small-caps.py`        | Adds the `smcp` and `c2sc` features from phonetic small-caps, lowercase, or capital glyphs. |
+| `add-old-style-figures.py` | Adds the `onum` feature. It maps digits to circled, superscript, or subscript figures. |
+| `anchor-em.py`             | Runs the pixel-perfect step. It re-anchors the em to N times 128 and sets ink-based line metrics. It never rescales glyphs. |
+| `pixel-scale.py`           | Scales every strike up by one shared factor on top of anchor. The default factor 1 does nothing. |
+| `verify-pixel-grid.py`     | Guards the build. It checks that every strike shares the same pixel and every glyph sits on the 128 grid. The build stops if this fails. |
+| `generate-nerd-fonts`      | Patches every `.ttf` in a folder with Nerd Font icons. It writes them to a sibling `-nerd` folder. |
+| `convert-woff2.py`         | Mirrors `build/ttf` to `build/woff2` as WOFF2. It skips `-nerd` unless you pass `--include-nerd`. |
+| `rename-family.py`         | Sets a font's family and style naming. It keeps the rest of the metadata. |
 
 ## Features
 
-- **Metadata** — per-strike families, semver, license/copyright, designer/license URLs.
-- **Small caps** — `smcp` (lowercase→small caps) and `c2sc` (caps→small caps), built from the font's own glyphs.
-- **Old-style figures** — `onum`, built from the font's own alternate digit glyphs.
-- **Nerd Fonts** — icon-patched variants for terminal use.
-- **WOFF2** — compact web fonts (base strikes by default; add `--include-nerd` for the icon variants).
+- **Two variants:** proportional (`quanta-strike-N`) for body text, mono (`quanta-strike-N-mono`) for code.
+- **Metadata:** per-strike families, semver, license and copyright, designer and license URLs.
+- **Small caps:** the build adds `smcp` and `c2sc` from the font's own glyphs.
+- **Old-style figures:** the build adds `onum` from the font's own alternate digits.
+- **Nerd Fonts:** icon-patched mono strikes for the terminal. Opt in to get them.
+- **WOFF2:** compact web fonts for both variants. The build skips the Nerd variants by default.
 
 ## Licence
 
-The fonts are licensed **OFL-1.1** (SIL Open Font License), the licence Google Fonts
-requires — it accepts only OFL-1.1, Apache-2.0 or UFL. OFL allows redistribution,
-modification, bundling and donations; it does not allow selling the font on its own.
+Google Fonts accepts only OFL-1.1, Apache-2.0, or UFL. So the fonts use **OFL-1.1**, the
+SIL Open Font License. OFL allows redistribution, modification, bundling, and donations. It
+does not allow selling the font on its own.
 
-The licence lives in [`OFL.txt`](OFL.txt) at the repo root, and `build.sh` copies it
-into every output folder that contains fonts — the OFL requires the licence to be
-distributed with them, so don't ship a font folder without it.
+The licence lives in [`OFL.txt`](OFL.txt) at the repo root. `build.sh` copies it into every
+output folder that holds fonts. The OFL requires the licence to travel with them, so never
+ship a font folder without it.
 
 ## Thanks
-Thanks to [yal.cc](https://yal.cc) for the inspiration on how to make this algorithm. Check out [YAL's pixel font generator](https://yal.cc/tools/pixel-font/) live.
+
+Thanks to [yal.cc](https://yal.cc) for the inspiration on the underlying algorithm. Check
+out [YAL's pixel font generator](https://yal.cc/tools/pixel-font/).
