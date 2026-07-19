@@ -2,12 +2,12 @@
 
 Each strike is a **pixel sheet**: one PNG (the drawn glyphs) plus one JSON (the grid
 geometry and font settings) sitting next to it, at
-`src/quanta-strike-N/regular/quanta-strike-N.{png,json}`. `png-to-ttf.py` is the only
+`src/quanta-strike-N/regular/quanta-strike-N.{png,json}`. `scripts/png-to-ttf.py` is the only
 thing that reads this pair; it turns them into the strike's TTF (a build artifact). The
 PNG + JSON are the **only real source** — see [AGENTS.md](AGENTS.md) for the pipeline and
 the pixel invariant.
 
-This document is the authoritative shape — if it disagrees with `png-to-ttf.py`, the
+This document is the authoritative shape — if it disagrees with `scripts/png-to-ttf.py`, the
 script wins.
 
 ---
@@ -41,7 +41,7 @@ would become ink).
 
 ---
 
-## Keys `png-to-ttf.py` reads
+## Keys `scripts/png-to-ttf.py` reads
 
 ### Grid geometry (required)
 
@@ -75,8 +75,8 @@ would become ink).
 
 ### Vertical metrics (required, but re-anchored)
 
-These are **required** (`png-to-ttf.py` reads them directly and errors if missing), but
-`anchor-em.py` later re-anchors the em to `N × 128` and derives the final metrics from the
+These are **required** (`scripts/png-to-ttf.py` reads them directly and errors if missing), but
+`scripts/anchor-em.py` later re-anchors the em to `N × 128` and derives the final metrics from the
 measured ink — so their exact values here are not critical. The outlines, advances, and
 cmap are what must be right.
 
@@ -91,7 +91,7 @@ also part of the vertical metrics.)
 ### Naming seeds (overwritten downstream)
 
 These give the font sensible initial names; the metadata patcher overwrites them from
-`default-metadata.json`, so they are only a fallback.
+`scripts/default-metadata.json`, so they are only a fallback.
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
@@ -153,6 +153,6 @@ both share the plain source. (General rule: a variant with a non-empty suffix us
 Build one strike standalone with:
 
 ```
-python3 png-to-ttf.py src/quanta-strike-14/regular/quanta-strike-14.json out/
-python3 png-to-ttf.py --proportional src/quanta-strike-14/regular/quanta-strike-14.json out/
+python3 scripts/png-to-ttf.py src/quanta-strike-14/regular/quanta-strike-14.json out/
+python3 scripts/png-to-ttf.py --proportional src/quanta-strike-14/regular/quanta-strike-14.json out/
 ```

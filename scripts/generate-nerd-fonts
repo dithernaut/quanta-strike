@@ -2,7 +2,7 @@
 #
 # Patch .ttf files in an input directory with Nerd Font icons.
 #
-# Usage: ./generate-nerd-fonts <input-dir> [output-dir] [family ...]
+# Usage: ./scripts/generate-nerd-fonts <input-dir> [output-dir] [family ...]
 #   input-dir   directory of built .ttf files (e.g. build/ttf/quanta-strike)
 #   output-dir  where to write patched fonts (default: "<input-dir>-nerd")
 #   family ...  optional family names to patch (e.g. quanta-strike-8).
@@ -11,6 +11,11 @@
 # Each "<family>-<style>.ttf" becomes "<family>-nerd-<style>.ttf" with its own
 # family name "<family>-nerd", so all strikes share one output folder while
 # staying distinct families.
+
+# Resolve our own location so the helper script and the vendored patcher are
+# found regardless of the caller's cwd. Input/output dirs stay caller-relative.
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+REPO_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 
 INPUT_DIR="$1"
 if [ -z "$INPUT_DIR" ]; then
@@ -56,7 +61,7 @@ if [ ! -d "$INPUT_DIR" ]; then
     echo "Error: input directory not found: $INPUT_DIR"
     exit 1
 fi
-if [ ! -f "./patcher/font-patcher" ]; then
+if [ ! -f "$REPO_ROOT/patcher/font-patcher" ]; then
     echo "Error: font-patcher script not found in patcher directory"
     exit 1
 fi
@@ -128,7 +133,7 @@ for font_file in "${fonts[@]}"; do
 
     before=$(ls "$OUTPUT_DIR"/*.ttf 2>/dev/null)
 
-    fontforge --script ./patcher/font-patcher \
+    fontforge --script "$REPO_ROOT/patcher/font-patcher" \
         --careful \
         --mono \
         -q \
@@ -184,7 +189,7 @@ for font_file in "${fonts[@]}"; do
 
     if [ -f "$desired" ]; then
         # Give it a clean family name, preserving copyright/version/license.
-        fontforge -lang=py -script ./rename-family.py "$desired" "$nerd_family" "$style" >/dev/null 2>&1
+        fontforge -lang=py -script "$SCRIPT_DIR/rename-family.py" "$desired" "$nerd_family" "$style" >/dev/null 2>&1
         echo "  Successfully generated $output_name"
     else
         echo "  Could not locate patched output for $filename"

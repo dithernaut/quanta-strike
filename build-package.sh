@@ -47,7 +47,7 @@ if [ "$count" -eq 0 ]; then
 fi
 
 # CSS pointing at the flat fonts/ folder.
-python3 "$SCRIPT_DIR/generate-css.py" "$WOFF2_DIR" \
+python3 "$SCRIPT_DIR/scripts/generate-css.py" "$WOFF2_DIR" \
     --out "$PKG_DIR" --flat --url-prefix "fonts/"
 
 # Per-strike files publish as 16.css, not quanta-strike-16.css, so an import

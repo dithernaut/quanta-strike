@@ -9,7 +9,7 @@ before doing anything.
   `-14`, `-16`, `-18`, `-20` (more may exist). Each strike is its **own font family**
   named `quanta-strike-N`. They are NOT weights/styles of one family.
 - Source art is a drawn pixel sheet: each strike is a PNG + JSON in
-  `src/quanta-strike-N/`. `png-to-ttf.py` turns that pair into the TTF, so the TTF is a
+  `src/quanta-strike-N/`. `scripts/png-to-ttf.py` turns that pair into the TTF, so the TTF is a
   **build artifact** — the PNG + JSON are the only real source. (The TTF used to be
   exported by hand; that step is now scripted, and the build is self-contained.)
 - **Two variants per strike, from the same source by default.** Every strike is built
@@ -67,7 +67,7 @@ The full pipeline (`png-to-ttf → metadata → small caps → old-style figures
 variants at once) and finally `Nerd` (mono variant only, the slow step) run once at the
 end. `build_variant` swaps the `STAGE_DIR`/`TTF_GROUP_DIR` globals the `run_*` helpers
 read, so the per-step scripts below are variant-agnostic.
-- **png-to-ttf.py** — builds each strike's TTF from its PNG + JSON, replacing the old
+- **scripts/png-to-ttf.py** — builds each strike's TTF from its PNG + JSON, replacing the old
   manual export step. Verified bit-identical to the reference TTFs on every strike —
   same contours, widths, cmap. Reads the geometry from the JSON, so the strike's cell
   grid / baseline / overrides are honoured; ink = `alpha >= 128 and 3r+5g+b <= 1024`
@@ -94,20 +94,20 @@ read, so the per-step scripts below are variant-agnostic.
     so build.sh **removes `build/tmp` at the end** of a successful build (and wipes it at
     the start of each run too). Pass `--keep-tmp` to keep it for inspection. It's
     gitignored with the rest of `build/`. `src/` holds the PNG + JSON only. Run standalone
-    as `png-to-ttf.py <json> <out-dir>`;
+    as `scripts/png-to-ttf.py <json> <out-dir>`;
     with no out-dir it writes next to the JSON, so pass one unless you want it in src/.
   - A strike with no PNG+JSON falls back to a prebuilt `src/<family>/regular/<family>.ttf`
     (copied into the staging dir); with neither, the build fails loudly.
-- **font-metadata-patcher.py** — names/version/license/OS2 class etc. NEVER touches
+- **scripts/font-metadata-patcher.py** — names/version/license/OS2 class etc. NEVER touches
   vertical metrics (keeps the pixel grid). `--flat` writes all strikes of one variant
   into a single folder (`build/ttf/quanta-strike/` for proportional,
   `build/ttf/quanta-strike-mono/` for mono). The internal family name comes from the
   staging folder name, so the mono strikes (staged under `<family>-mono/`) get the
   `-mono` family for free. `--type` is set per variant — `sans` (or `serif`) for
   proportional, always `monospace` for mono — and is deliberately NOT read from
-  `default-metadata.json` (build_variant appends it last so it wins). The proportional
-  type can be set via a `prop-type` key in default-metadata.json (default `sans`).
-  - Values come from **`default-metadata.json`** at the repo root; when it exists
+  `scripts/default-metadata.json` (build_variant appends it last so it wins). The proportional
+  type can be set via a `prop-type` key in scripts/default-metadata.json (default `sans`).
+  - Values come from **`scripts/default-metadata.json`** at the repo root; when it exists
     build.sh reads it and asks no metadata questions (delete it to get the prompts
     back). The one exception is the **version bump, which is ALWAYS asked** and must
     never be moved into the defaults — it's a per-release decision, not a constant.
@@ -130,7 +130,7 @@ read, so the per-step scripts below are variant-agnostic.
   - **`OFL.txt`** (repo root) is the canonical SIL text, verbatim from
     openfontlicense.org, with the placeholder header replaced by our notice and NO
     Reserved Font Name (the Google Fonts convention). Its first line must stay
-    byte-identical to `copyright` in default-metadata.json — Google Fonts compares
+    byte-identical to `copyright` in scripts/default-metadata.json — Google Fonts compares
     them. `run_copy_license` copies it into every build output folder holding fonts,
     because the OFL requires the licence to travel with them.
   - Three DIFFERENT name-table fields, easy to conflate: `--license` = copyright
@@ -138,24 +138,24 @@ read, so the per-step scripts below are variant-agnostic.
     (ID 9). Google Fonts checks all of them.
   - **FontForge pre-fills copyright with the OS account's real name**, so it must
     always be set explicitly or the builder's legal name ships in the font.
-    png-to-ttf.py sets it from the JSON, and the patcher overwrites it.
-- **add-small-caps.py / add-old-style-figures.py** — add `smcp`/`c2sc` and `onum` GSUB
+    scripts/png-to-ttf.py sets it from the JSON, and the patcher overwrites it.
+- **scripts/add-small-caps.py / scripts/add-old-style-figures.py** — add `smcp`/`c2sc` and `onum` GSUB
   features from existing glyphs (sources: phonetic/lowercase/capital; circled/super/sub).
-- **anchor-em.py** — the **pixel-perfect step (DEFAULT)**. Sets `em = N×128`,
+- **scripts/anchor-em.py** — the **pixel-perfect step (DEFAULT)**. Sets `em = N×128`,
   `descent = measured descender`, `ascent = the rest`; sets hhea/OS2 line metrics to the
   FULL ink extent so overshooting accents don't clip. Re-anchors whatever em the source
   exported (N×128 or the full canvas) back to N×128. Glyphs never rescaled.
-- **pixel-scale.py** — OPTIONAL uniform scale-up applied ON TOP of anchor (default
+- **scripts/pixel-scale.py** — OPTIONAL uniform scale-up applied ON TOP of anchor (default
   factor 1 = no-op). Shrinks every em by one shared factor so the family renders bigger
   while the pixel stays identical across strikes. Non-integer factor → slightly soft
   edges (accepted); factor 1 is crisp. UNIFORM only — can't fix per-strike proportions,
   and can't give "a bit bigger AND crisp" (crisp only at whole multiples ×2, ×3).
-- **verify-pixel-grid.py** — the GUARD. Asserts every strike shares the same `em/N`
+- **scripts/verify-pixel-grid.py** — the GUARD. Asserts every strike shares the same `em/N`
   (same pixel) and all glyphs are on the 128 grid. Build refuses to ship if violated.
-- **generate-nerd-fonts / rename-family.py** — Nerd Font variants, vendored patcher in
+- **scripts/generate-nerd-fonts / scripts/rename-family.py** — Nerd Font variants, vendored patcher in
   `patcher/`. Run for the **mono variant only** (`quanta-strike-N-mono-nerd`), and last
   because patching is the slow step.
-- **convert-woff2.py** — mirrors `build/ttf → build/woff2` (base only by default,
+- **scripts/convert-woff2.py** — mirrors `build/ttf → build/woff2` (base only by default,
   `--include-nerd` optional), via FontForge's native WOFF2. One pass covers both variants
   since it walks the whole `build/ttf` tree.
 
@@ -179,7 +179,7 @@ Two CLI flags pin the choices that would otherwise be prompted (both honoured in
   count, or `auto` (scale with strike size: 1px N<11, 2px 11–18, 3px N>18). When omitted,
   each strike falls back to its own JSON `spacing` key, then `auto` — so `--spacing`
   overrides the per-strike JSON. Also settable repo-wide via a `spacing` key in
-  default-metadata.json (same force-all effect). Mono is unaffected (its packing is
+  scripts/default-metadata.json (same force-all effect). Mono is unaffected (its packing is
   `glyph-spacing`).
 So `./build.sh -y --spacing 2 --nerd-fonts` = non-interactive, fixed 2px proportional gap
 everywhere, with the mono Nerd variants; plain `./build.sh -y` lets each strike's JSON (or
@@ -202,9 +202,9 @@ Always anchors pixel-perfect first, then prompts `Scale factor on top [default 1
 
 ## Pixel-sheet source format (`src/*/*.json`)
 The full field-by-field reference (every key png-to-ttf reads, plus a minimal example) is
-in **[SOURCE-FORMAT.md](SOURCE-FORMAT.md)**. Summary below.
+in **[docs/SOURCE-FORMAT.md](docs/SOURCE-FORMAT.md)**. Summary below.
 
-The JSON sitting next to each PNG; `png-to-ttf.py` is the only thing that reads it.
+The JSON sitting next to each PNG; `scripts/png-to-ttf.py` is the only thing that reads it.
 Keys of note: `in-glyphs` (rows of chars = PNG grid order, indexed by
 CODEPOINT — astral chars take one cell), `glyph-width`/`glyph-height` (cell size),
 `glyph-ofs-x/y` (grid origin), `glyph-sep-x/y` (gap between cells), `glyph-base-x`

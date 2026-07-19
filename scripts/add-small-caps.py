@@ -374,13 +374,13 @@ def main():
         epilog='''
 Examples:
   # Interactive — processes all fonts in build/
-  python3 add-small-caps.py
+  python3 scripts/add-small-caps.py
 
   # Non-interactive — capitals as small caps, single family
-  python3 add-small-caps.py --source capital --family picosans
+  python3 scripts/add-small-caps.py --source capital --family picosans
 
   # Output to a separate directory instead of overwriting
-  python3 add-small-caps.py --src build/picotype --output build/picotype-sc
+  python3 scripts/add-small-caps.py --src build/picotype --output build/picotype-sc
         '''.strip()
     )
     parser.add_argument('--src', '-s', default='build',

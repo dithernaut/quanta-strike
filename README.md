@@ -114,7 +114,7 @@ html { font-size: 200%; }  /* 1 source pixel = 2 CSS px, still crisp */
 
 Whole multiples stay sharp. This is integer scaling, the same trick an emulator
 uses. Land between them and the edges go soft, which is sometimes what you want.
-`pixel-scale.py` does the same job at build time.
+`scripts/pixel-scale.py` does the same job at build time.
 
 The `.qs-N` classes opt out of this on purpose. They use `px`, so they ignore the
 root and stay locked at 1.0.
@@ -208,7 +208,7 @@ CI or a repeatable release. The defaults are not all "yes". The version keeps. N
 Fonts stay off. That is why the flag is not `--yes`. Every prompt still prints the
 answer it took, so the log stays honest.
 
-The build reads author, licence, URLs, and type from `default-metadata.json`, so it
+The build reads author, licence, URLs, and type from `scripts/default-metadata.json`, so it
 does not ask for them. Edit that file to change them. Delete it to get the prompts
 back. The build always asks for the version. That one is a per-release choice.
 
@@ -248,7 +248,7 @@ cd package && npm publish
 `package/package.json`, so the package always matches the fonts it ships. Nothing
 publishes on its own. You run `npm publish` yourself.
 
-[PUBLISHING.md](PUBLISHING.md) walks through a full release, fonts and package
+[docs/PUBLISHING.md](docs/PUBLISHING.md) walks through a full release, fonts and package
 together.
 
 ## Layout
@@ -273,26 +273,26 @@ package/                          # the npm package. build-package.sh fills it
 patcher/                          # vendored Nerd Fonts patcher and glyph sets
 ```
 
-[SOURCE-FORMAT.md](SOURCE-FORMAT.md) documents the `src/*.json` pixel-sheet format
+[docs/SOURCE-FORMAT.md](docs/SOURCE-FORMAT.md) documents the `src/*.json` pixel-sheet format
 field by field.
 
 ## Scripts
 
 | script | does |
 |--------|------|
-| `png-to-ttf.py`            | Compiles a strike's PNG and JSON into a TTF. 1 pixel becomes 128 units. `--proportional` trims each glyph instead of using the mono advance. |
-| `font-metadata-patcher.py` | Sets family and style names, OS-2, weight, width, version, copyright, and URLs. It never touches metrics, so the pixel grid holds. |
-| `add-small-caps.py`        | Adds `smcp` and `c2sc` from the font's own small-caps, lowercase, or capital glyphs. |
-| `add-old-style-figures.py` | Adds `onum`. It maps digits to circled, superscript, or subscript figures. |
-| `anchor-em.py`             | Anchors the em to N times 128 and sets ink-based line metrics. It never rescales glyphs. |
-| `pixel-scale.py`           | Scales every strike by one shared factor on top of the anchor. Factor 1 does nothing. |
-| `verify-pixel-grid.py`     | Guards the build. It checks that every strike shares the same pixel and every glyph sits on the 128 grid. The build stops if this fails. |
-| `generate-nerd-fonts`      | Patches every `.ttf` in a folder with Nerd Font icons and writes them to a sibling `-nerd` folder. |
-| `convert-woff2.py`         | Mirrors `build/ttf` to `build/woff2`. It skips `-nerd` unless you pass `--include-nerd`. |
-| `generate-css.py`          | Writes the drop-in CSS from the built WOFF2 files. It pairs each family with its size. |
-| `rename-family.py`         | Sets a font's family and style naming and keeps the rest of the metadata. |
+| `scripts/png-to-ttf.py`            | Compiles a strike's PNG and JSON into a TTF. 1 pixel becomes 128 units. `--proportional` trims each glyph instead of using the mono advance. |
+| `scripts/font-metadata-patcher.py` | Sets family and style names, OS-2, weight, width, version, copyright, and URLs. It never touches metrics, so the pixel grid holds. |
+| `scripts/add-small-caps.py`        | Adds `smcp` and `c2sc` from the font's own small-caps, lowercase, or capital glyphs. |
+| `scripts/add-old-style-figures.py` | Adds `onum`. It maps digits to circled, superscript, or subscript figures. |
+| `scripts/anchor-em.py`             | Anchors the em to N times 128 and sets ink-based line metrics. It never rescales glyphs. |
+| `scripts/pixel-scale.py`           | Scales every strike by one shared factor on top of the anchor. Factor 1 does nothing. |
+| `scripts/verify-pixel-grid.py`     | Guards the build. It checks that every strike shares the same pixel and every glyph sits on the 128 grid. The build stops if this fails. |
+| `scripts/generate-nerd-fonts`      | Patches every `.ttf` in a folder with Nerd Font icons and writes them to a sibling `-nerd` folder. |
+| `scripts/convert-woff2.py`         | Mirrors `build/ttf` to `build/woff2`. It skips `-nerd` unless you pass `--include-nerd`. |
+| `scripts/generate-css.py`          | Writes the drop-in CSS from the built WOFF2 files. It pairs each family with its size. |
+| `scripts/rename-family.py`         | Sets a font's family and style naming and keeps the rest of the metadata. |
 | `build-package.sh`         | Assembles the npm package from a finished build. |
-| `default-metadata.json`    | Not a script. Holds the author, licence, and URL defaults the build applies instead of asking. |
+| `scripts/default-metadata.json`    | Not a script. Holds the author, licence, and URL defaults the build applies instead of asking. |
 
 ## Features
 

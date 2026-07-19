@@ -15,6 +15,12 @@ BOLD='\033[1m'
 DIM='\033[2m'
 NC='\033[0m' # No Color
 
+# Run from the repo root regardless of where the user invoked us, so the
+# relative paths below resolve. Pipeline scripts live in scripts/.
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd "$SCRIPT_DIR"
+SCRIPTS_DIR="$SCRIPT_DIR/scripts"
+
 # Default directories
 SRC_DIR="./src"
 BUILD_DIR="./build"
@@ -24,13 +30,13 @@ TTF_GROUP_DIR="$TTF_DIR/quanta-strike"
 
 # Metadata defaults. When this file exists the build reads names/license/URLs
 # from it and skips the questions; remove it to get the interactive prompts.
-DEFAULTS_FILE="./default-metadata.json"
+DEFAULTS_FILE="$SCRIPTS_DIR/default-metadata.json"
 
 # The licence text. OFL requires it to be distributed WITH the fonts, so it gets
 # copied into every output folder that holds fonts.
 LICENSE_FILE="./OFL.txt"
 
-# Staged sources. png-to-ttf.py builds each strike's TTF in here, mirroring the
+# Staged sources. scripts/png-to-ttf.py builds each strike's TTF in here, mirroring the
 # src/<family>/<style>/ layout the metadata patcher expects, so that src/ only
 # ever holds the real sources (PNG + JSON) and never a build artifact.
 # Lives under build/ — wiped at the start of every run, and already gitignored.
@@ -48,7 +54,7 @@ PROP_TYPE="sans"
 # 128. A pixel count, or "auto" (scale with strike size N: 1px N<11, 2px 11..18,
 # 3px N>18). EMPTY = "let each strike decide" — png-to-ttf then reads the strike
 # JSON's `spacing` key, falling back to "auto". Precedence: --spacing V (forces
-# every strike, skips the prompt) > a "spacing" key in default-metadata.json >
+# every strike, skips the prompt) > a "spacing" key in scripts/default-metadata.json >
 # the per-strike JSON `spacing` key > "auto". Empty is the default so the JSON
 # stays in control; a build-level value here forces all strikes. PROP_GAP_SET
 # records whether --spacing already fixed it.
@@ -278,7 +284,7 @@ multi_select() {
 # The source is read from src/<family>/regular/ but STAGED under a folder named
 # <family><suffix> — that folder name becomes the internal family name (the
 # metadata patcher takes it from the folder), which is how the mono variant gets
-# its "-mono" family. prop_flag is passed straight to png-to-ttf.py (empty, or
+# its "-mono" family. prop_flag is passed straight to scripts/png-to-ttf.py (empty, or
 # "--proportional --prop-gap ...").
 #
 # A variant may have its OWN hand-drawn sheet: if a <family><suffix> pair exists
@@ -315,8 +321,8 @@ run_png_to_ttf() {
 
         mkdir -p "$stage"
 
-        if [ -f "./png-to-ttf.py" ] && [ -f "$json" ] && [ -f "$png" ]; then
-            if python3 png-to-ttf.py $prop_flag "$json" "$stage"; then
+        if [ -f "$SCRIPTS_DIR/png-to-ttf.py" ] && [ -f "$json" ] && [ -f "$png" ]; then
+            if python3 "$SCRIPTS_DIR/png-to-ttf.py" $prop_flag "$json" "$stage"; then
                 [ "$src_name" != "$family_name" ] && print_info "  ${DIM}$family_name: using dedicated $src_name sheet${NC}"
                 built=$((built + 1))
             else
@@ -386,8 +392,8 @@ run_metadata_patcher() {
 
     print_info "Running metadata patcher for ${BOLD}$family_name${NC}..."
 
-    # Reads the staged TTF that png-to-ttf.py just built, not src/.
-    local cmd="python3 font-metadata-patcher.py --src '$STAGE_DIR' --family '$family_name' --output '$TTF_GROUP_DIR' --flat"
+    # Reads the staged TTF that scripts/png-to-ttf.py just built, not src/.
+    local cmd="python3 \"$SCRIPTS_DIR/font-metadata-patcher.py\" --src '$STAGE_DIR' --family '$family_name' --output '$TTF_GROUP_DIR' --flat"
 
     if [ -n "$extra_args" ]; then
         cmd="$cmd $extra_args"
@@ -411,8 +417,8 @@ run_nerd_fonts_generator() {
 
     print_info "Running Nerd Fonts generator for: ${BOLD}${families[*]}${NC}"
 
-    if [ ! -f "./generate-nerd-fonts" ]; then
-        print_error "generate-nerd-fonts script not found"
+    if [ ! -f "$SCRIPTS_DIR/generate-nerd-fonts" ]; then
+        print_error "scripts/generate-nerd-fonts script not found"
         return 1
     fi
 
@@ -427,7 +433,7 @@ run_nerd_fonts_generator() {
     fi
 
     local nerd_dir="${TTF_GROUP_DIR}-nerd"
-    if "./generate-nerd-fonts" "$TTF_GROUP_DIR" "$nerd_dir" "${families[@]}"; then
+    if "$SCRIPTS_DIR/generate-nerd-fonts" "$TTF_GROUP_DIR" "$nerd_dir" "${families[@]}"; then
         print_success "Nerd Fonts generator completed"
         return 0
     else
@@ -443,7 +449,7 @@ run_small_caps() {
 
     print_info "Running small caps..."
 
-    local cmd="python3 add-small-caps.py --src '$TTF_GROUP_DIR' --source '$source'"
+    local cmd="python3 \"$SCRIPTS_DIR/add-small-caps.py\" --src '$TTF_GROUP_DIR' --source '$source'"
     if [ "$c2sc" != "true" ]; then
         cmd="$cmd --no-c2sc"
     fi
@@ -463,7 +469,7 @@ run_old_style_figures() {
 
     print_info "Running old-style figures..."
 
-    local cmd="python3 add-old-style-figures.py --src '$TTF_GROUP_DIR' --source '$source'"
+    local cmd="python3 \"$SCRIPTS_DIR/add-old-style-figures.py\" --src '$TTF_GROUP_DIR' --source '$source'"
 
     if eval "$cmd"; then
         print_success "Old-style figures completed"
@@ -480,7 +486,7 @@ run_woff2() {
 
     print_info "Converting to WOFF2..."
 
-    local cmd="python3 convert-woff2.py '$TTF_DIR' '$BUILD_DIR/woff2'"
+    local cmd="python3 \"$SCRIPTS_DIR/convert-woff2.py\" '$TTF_DIR' '$BUILD_DIR/woff2'"
     if [ "$include_nerd" = "true" ]; then
         cmd="$cmd --include-nerd"
     fi
@@ -500,7 +506,7 @@ run_woff2() {
 run_generate_css() {
     print_info "Generating CSS for the web fonts..."
 
-    local cmd="python3 generate-css.py '$BUILD_DIR/woff2'"
+    local cmd="python3 \"$SCRIPTS_DIR/generate-css.py\" '$BUILD_DIR/woff2'"
     echo -e "  ${DIM}$cmd${NC}"
 
     if eval "$cmd"; then
@@ -520,14 +526,14 @@ run_verify() {
     local label="$1"; shift
     local targets=("$@")
 
-    if [ ! -f "./verify-pixel-grid.py" ]; then
-        print_warning "verify-pixel-grid.py not found — skipping invariant check"
+    if [ ! -f "$SCRIPTS_DIR/verify-pixel-grid.py" ]; then
+        print_warning "scripts/verify-pixel-grid.py not found — skipping invariant check"
         return 0
     fi
 
     print_info "Verifying pixel-grid invariant ($label)..."
 
-    if python3 verify-pixel-grid.py "${targets[@]}" 2>/dev/null; then
+    if python3 "$SCRIPTS_DIR/verify-pixel-grid.py" "${targets[@]}" 2>/dev/null; then
         print_success "Pixel-grid invariant holds ($label)"
         return 0
     else
@@ -541,14 +547,14 @@ run_verify() {
 run_pixel_scale() {
     local scale="$1"
 
-    if [ ! -f "./pixel-scale.py" ]; then
-        print_error "pixel-scale.py not found"
+    if [ ! -f "$SCRIPTS_DIR/pixel-scale.py" ]; then
+        print_error "scripts/pixel-scale.py not found"
         return 1
     fi
 
     print_info "Scaling family (pixel stays identical across strikes) at factor ${BOLD}$scale${NC}..."
 
-    if python3 pixel-scale.py "$TTF_GROUP_DIR" --scale "$scale"; then
+    if python3 "$SCRIPTS_DIR/pixel-scale.py" "$TTF_GROUP_DIR" --scale "$scale"; then
         print_success "Pixel-scale completed"
         return 0
     else
@@ -560,14 +566,14 @@ run_pixel_scale() {
 # Function to anchor the em to N*128 (pixel-perfect) and set line metrics to the
 # full ink extent, so accents drawn above the em (taller canvas) don't clip.
 run_anchor_em() {
-    if [ ! -f "./anchor-em.py" ]; then
-        print_error "anchor-em.py not found"
+    if [ ! -f "$SCRIPTS_DIR/anchor-em.py" ]; then
+        print_error "scripts/anchor-em.py not found"
         return 1
     fi
 
     print_info "Anchoring em to strike size (pixel-perfect) + line metrics for accent overshoot..."
 
-    if python3 anchor-em.py "$TTF_GROUP_DIR"; then
+    if python3 "$SCRIPTS_DIR/anchor-em.py" "$TTF_GROUP_DIR"; then
         print_success "Anchor-em completed"
         return 0
     else
@@ -706,7 +712,7 @@ compute_version_flag() {
 VERSION_STRATEGY="5"
 VERSION_CUSTOM=""
 
-# Turn default-metadata.json into patcher flags (shell-quoted, one line).
+# Turn scripts/default-metadata.json into patcher flags (shell-quoted, one line).
 metadata_flags_from_defaults() {
     python3 - "$DEFAULTS_FILE" <<'PY'
 import json, shlex, sys
@@ -750,7 +756,7 @@ PY
 }
 
 # Ask for the version bump. Deliberately always asked, never taken from
-# default-metadata.json: it's a per-release decision, not a project constant.
+# scripts/default-metadata.json: it's a per-release decision, not a project constant.
 # Sets VERSION_STRATEGY / VERSION_CUSTOM; version computed per-family at build time.
 ask_version() {
     echo
@@ -948,9 +954,9 @@ main() {
         exit 1
     fi
 
-    # Check if font-metadata-patcher.py exists
-    if [ ! -f "font-metadata-patcher.py" ]; then
-        print_error "font-metadata-patcher.py not found in current directory"
+    # Check if scripts/font-metadata-patcher.py exists
+    if [ ! -f "$SCRIPTS_DIR/font-metadata-patcher.py" ]; then
+        print_error "scripts/font-metadata-patcher.py not found in current directory"
         exit 1
     fi
 
@@ -1206,15 +1212,15 @@ show_help() {
     echo "  2. Configure metadata options (applied to both variants)"
     echo "  3. Choose optional features (small caps, old-style figures, nerd fonts, WOFF2)"
     echo "  4. Build EACH strike twice — a proportional variant (quanta-strike-N)"
-    echo "     and a mono variant (quanta-strike-N-mono) — via png-to-ttf.py into"
+    echo "     and a mono variant (quanta-strike-N-mono) — via scripts/png-to-ttf.py into"
     echo "     build/tmp; then base WOFF2, then Nerd Fonts (mono variant only) last"
     echo
     echo "Requirements:"
-    echo "  - png-to-ttf.py (builds each strike's TTF from its PNG + JSON)"
-    echo "  - font-metadata-patcher.py in current directory"
+    echo "  - scripts/png-to-ttf.py (builds each strike's TTF from its PNG + JSON)"
+    echo "  - scripts/font-metadata-patcher.py"
     echo "  - FontForge with Python bindings (brew install fontforge)"
-    echo "  - generate-nerd-fonts script (for nerd font variants)"
-    echo "  - verify-pixel-grid.py (enforces em == N*128 / 1px-per-pixel invariant)"
+    echo "  - scripts/generate-nerd-fonts script (for nerd font variants)"
+    echo "  - scripts/verify-pixel-grid.py (enforces em == N*128 / 1px-per-pixel invariant)"
     echo
 }
 

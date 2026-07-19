@@ -18,7 +18,7 @@ Exit status 0 if all strikes agree, 1 if any strike breaks the shared pixel
 (so it can be used as a build gate / pre-commit check).
 
 Usage:
-  python3 verify-pixel-grid.py <dir-or-file> [<dir-or-file> ...]
+  python3 scripts/verify-pixel-grid.py <dir-or-file> [<dir-or-file> ...]
 
 Note: Nerd Font variants are intentionally NOT part of this guarantee (the
 patcher may rescale them); point this at the base TTFs / src, not the nerd dir.
@@ -88,7 +88,7 @@ def inspect_font(path):
 def main():
     args = sys.argv[1:]
     if not args:
-        sys.exit('Usage: verify-pixel-grid.py <dir-or-file> [<dir-or-file> ...]')
+        sys.exit('Usage: scripts/verify-pixel-grid.py <dir-or-file> [<dir-or-file> ...]')
 
     fonts = []
     for a in args:

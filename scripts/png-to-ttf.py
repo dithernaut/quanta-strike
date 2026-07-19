@@ -42,11 +42,11 @@ the art stay out of the font — a dark guide would become ink.
 merge them. Nothing is rescaled: 1 pixel stays exactly font-px-size (128) units.
 See CLAUDE.md.
 
-Vertical metrics are taken from the JSON, but anchor-em.py re-anchors them
+Vertical metrics are taken from the JSON, but scripts/anchor-em.py re-anchors them
 downstream anyway; what has to be right here is outlines, widths and cmap.
 
 Usage:
-    png-to-ttf.py SRC [OUT] [--family NAME]... [--proportional] [--prop-gap N]
+    scripts/png-to-ttf.py SRC [OUT] [--family NAME]... [--proportional] [--prop-gap N]
 
     SRC   a src/ directory, a strike directory, or a .json file
     OUT   a directory to write <family>.ttf into (default: next to the JSON)

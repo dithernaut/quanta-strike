@@ -247,9 +247,9 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
 Examples:
-  python3 add-old-style-figures.py
-  python3 add-old-style-figures.py --source circled --family picosans
-  python3 add-old-style-figures.py --src build/picotype --output build/picotype-osf
+  python3 scripts/add-old-style-figures.py
+  python3 scripts/add-old-style-figures.py --source circled --family picosans
+  python3 scripts/add-old-style-figures.py --src build/picotype --output build/picotype-osf
         '''.strip()
     )
     parser.add_argument('--src', '-s', default='build',

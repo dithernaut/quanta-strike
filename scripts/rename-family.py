@@ -4,7 +4,7 @@
 Rename a font's family / style naming in place, preserving all other SFNT
 name records (copyright, version, license, designer URL, ...).
 
-Usage: fontforge -lang=py -script rename-family.py <font> <family> <style>
+Usage: fontforge -lang=py -script scripts/rename-family.py <font> <family> <style>
 """
 import sys
 

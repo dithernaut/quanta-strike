@@ -18,7 +18,7 @@ Whatever em the source exports (N*128 already, or the taller canvas height), thi
 re-anchors it to N*128 and captures the overshoot in the line metrics.
 
 Usage:
-  python3 anchor-em.py <dir>
+  python3 scripts/anchor-em.py <dir>
 """
 
 import sys
@@ -112,7 +112,7 @@ def anchor(path):
 
 def main():
     if len(sys.argv) < 2:
-        sys.exit("Usage: anchor-em.py <dir>")
+        sys.exit("Usage: scripts/anchor-em.py <dir>")
     d = sys.argv[1]
     fonts = sorted(glob.glob(os.path.join(d, '**', '*.ttf'), recursive=True))
     if not fonts:

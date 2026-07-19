@@ -45,7 +45,7 @@ Current: 0.1.0 (from ./VERSION)
 ```
 
 The build writes the new number back to `VERSION` when it succeeds. It also runs
-`verify-pixel-grid.py`, which refuses to ship a font that broke the pixel grid. If
+`scripts/verify-pixel-grid.py`, which refuses to ship a font that broke the pixel grid. If
 that guard fails, stop and fix the art. Do not publish around it.
 
 ## 2. Check the build

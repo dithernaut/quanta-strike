@@ -4,8 +4,8 @@
 Convert a tree of .ttf fonts to .woff2, mirroring the directory structure.
 
 Usage:
-  fontforge -lang=py -script convert-woff2.py <ttf-root> <woff2-root> [--include-nerd]
-  e.g. fontforge -lang=py -script convert-woff2.py build/ttf build/woff2
+  fontforge -lang=py -script scripts/convert-woff2.py <ttf-root> <woff2-root> [--include-nerd]
+  e.g. fontforge -lang=py -script scripts/convert-woff2.py build/ttf build/woff2
 
 For every build/ttf/<group>/<font>.ttf it writes build/woff2/<group>/<font>.woff2.
 
@@ -29,7 +29,7 @@ def main():
     positional = [a for a in args if not a.startswith('--')]
 
     if len(positional) < 2:
-        sys.exit("Usage: fontforge -lang=py -script convert-woff2.py <ttf-root> <woff2-root> [--include-nerd]")
+        sys.exit("Usage: fontforge -lang=py -script scripts/convert-woff2.py <ttf-root> <woff2-root> [--include-nerd]")
 
     ttf_root = os.path.abspath(positional[0])
     woff2_root = os.path.abspath(positional[1])

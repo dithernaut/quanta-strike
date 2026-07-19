@@ -16,4 +16,4 @@ if [ ! -d "$INPUT_DIR" ]; then
     exit 1
 fi
 
-./generate-nerd-fonts "$INPUT_DIR"
+./scripts/generate-nerd-fonts "$INPUT_DIR"

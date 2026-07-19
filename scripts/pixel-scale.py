@@ -27,7 +27,7 @@ one shared factor instead of per-font body bounds):
     scale 8/7    -> e = 112 -> pixel 1.143px   (small strikes ~ Helvetica)
 
 Usage:
-  python3 pixel-scale.py <dir> [--scale S]     # default S = 8/7 ~= 1.143
+  python3 scripts/pixel-scale.py <dir> [--scale S]     # default S = 8/7 ~= 1.143
 """
 
 import sys
