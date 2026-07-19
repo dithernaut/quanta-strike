@@ -1,14 +1,17 @@
 # quanta-strike
 
-![quanta-strike shown at every strike size](docs/quanta-strike.png)
+<p align="center">
+  <img src="docs/quanta-strike.png" alt="quanta-strike shown at every strike size">
+</p>
 
-A pixel typeface with one font per size.
+A modern pixel typeface. I draw each size by hand. Most fonts take one design and stretch
+it to every size. quanta-strike does not. It ships a family of *strikes*. Each strike is
+its own pixel design, drawn for one target size. Text stays crisp at the size you drew it
+for. It resamples nothing.
 
-Most fonts take one design and stretch it to every size. That breaks pixel art. A
-pixel has to land on the screen grid, and stretching pushes it off. So quanta-strike
-never stretches. It ships a separate font for each size. I draw each one by hand.
-
-Today it ships eight sizes: **6, 10, 12, 14, 16, 18, 20, 32**. More will come.
+The build works straight from pixel sheets. Each strike is a PNG plus a JSON file. A
+pipeline compiles that pair into fonts. It adds proper metadata and extra OpenType
+features along the way.
 
 📖 **Read the story:** [dithernaut.com/posts/pixel-scaling](https://dithernaut.com/posts/pixel-scaling)
 
@@ -183,31 +186,6 @@ The build makes every strike twice from the same art.
 Each one is its own family. Mono is not a style of the proportional family. Both hold
 the pixel grid. Trimming only drops empty pixel columns, so the pixel never moves.
 
-## Why it works
-
-A pixel font has one job. Every pixel must land on the screen's pixel grid. Then the
-art stays sharp.
-
-A normal font is one set of outlines, and the renderer resizes them to whatever you
-ask for. Smooth typefaces survive that. Pixel art does not. Ask for a size the design
-was not drawn for and the renderer resamples it. Pixel edges fall between screen
-pixels. The rasterizer smears them. Your blocky art turns muddy.
-
-quanta-strike stops scaling instead. Every strike sits on a grid where 1 source pixel
-equals 128 font units. The em holds a whole number of pixels. For `quanta-strike-N`
-the em is N times 128. Render a strike at its own size and one source pixel covers
-exactly 1 CSS px:
-
-```
-pixel size in CSS px = font-size × 128 / em = N × 128 / (N × 128) = 1.0
-```
-
-Every strike shares those units. One pixel of `quanta-strike-12` at 12px matches the
-size of one pixel of `quanta-strike-20` at 20px. I draw them apart. They still agree.
-
-The pipeline protects that. It never touches vertical metrics. It rewrites naming and
-metadata, and it adds glyph features. It leaves the em, ascent, descent, and line gap
-alone. Changing the em would push pixels off the grid, so it never does.
 
 ## Build it yourself
 
