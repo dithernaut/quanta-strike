@@ -7,3 +7,6 @@ __pycache__/
 
 # Build output (regenerated from src/ by the pipeline)
 /build/
+
+# Build zip
+quanta-strike-*.*.*.zip
