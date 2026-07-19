@@ -20,7 +20,7 @@ before doing anything.
   - **proportional** — `quanta-strike-N` (the base name), each glyph trimmed to its own
     ink (zero left side bearing, advance = `(ink-width + gap) × 128`). The gap is chosen
     per strike in precedence order: `--spacing V` (forces all strikes) → the strike
-    JSON's `spacing` key → **`auto`**, which scales with strike size N (1px N≤10, 2px
+    JSON's `spacing` key → **`auto`**, which scales with strike size N (1px N<11, 2px
     11–18, 3px N>18; bigger strikes get more air). A `spacing` value is a pixel count or
     `"auto"`. More legible for body text; `glyph-width` is now conceptually the *max*
     width. No Nerd Fonts.
@@ -76,7 +76,7 @@ read, so the per-step scripts below are variant-agnostic.
   units; never rescales. Standalone — the script's header documents every rule.
   - **`--proportional [--prop-gap V]`** switches from the default fixed mono advance to
     per-glyph trimmed widths. `V` is a pixel count or **`auto`** (default): auto reads
-    the strike size N (= em/px) and picks 1/2/3px by size (1px N≤10, 2px 11–18, 3px N>18)
+    the strike size N (= em/px) and picks 1/2/3px by size (1px N<11, 2px 11–18, 3px N>18)
     — so the smart-spacing policy lives here, where N is known, and standalone runs get
     it too. This is a CLI flag, driven by build.sh per variant — NOT the JSON
     `font-is-mono` key, which is untouched. Empty glyphs (space, `hide`) keep the mono
@@ -164,7 +164,7 @@ Two CLI flags pin the choices that would otherwise be prompted (both honoured in
 - **`--nerd-fonts`** (alias `--nerd`) — opt IN to Nerd Font generation (mono variant
   only, the slow step). Off unless given, so a plain `--defaults` build skips it.
 - **`--spacing V`** — FORCE the proportional inter-glyph gap for every strike: a pixel
-  count, or `auto` (scale with strike size: 1px N≤10, 2px 11–18, 3px N>18). When omitted,
+  count, or `auto` (scale with strike size: 1px N<11, 2px 11–18, 3px N>18). When omitted,
   each strike falls back to its own JSON `spacing` key, then `auto` — so `--spacing`
   overrides the per-strike JSON. Also settable repo-wide via a `spacing` key in
   default-metadata.json (same force-all effect). Mono is unaffected (its packing is

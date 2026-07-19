@@ -24,7 +24,7 @@ Two width modes, selected by --proportional (default off = mono):
                    side bearing, and the advance becomes
                        (ink-width + gap) * font-px-size
                    where gap is a fixed pixel count or "auto" (scales with the
-                   strike size N = em / font-px-size: 1px N<=10, 2px 11..18, 3px
+                   strike size N = em / font-px-size: 1px N<11, 2px 11..18, 3px
                    N>18 — bigger strikes get more air). Resolved in precedence
                    order: an explicit --prop-gap, else the JSON `spacing` key
                    (per strike), else "auto". glyph-width stays the cell/max
@@ -263,9 +263,9 @@ def parse_overrides(lines):
 # ── conversion ─────────────────────────────────────────────────────────────
 
 def smart_gap(n):
-    """Auto proportional gap by strike size N: 1px for N<=10, 2px for 11..18,
+    """Auto proportional gap by strike size N: 1px for N<11, 2px for 11..18,
     3px for N>18 — bigger strikes read better with a touch more spacing."""
-    if n <= 10:
+    if n < 11:
         return 1
     if n <= 18:
         return 2
@@ -500,7 +500,7 @@ def main():
                          "instead of the fixed mono advance")
     ap.add_argument("--prop-gap", default=None,
                     help="proportional inter-glyph gap: a pixel count, or 'auto' "
-                         "to scale it with the strike size N (1px N<=10, 2px "
+                         "to scale it with the strike size N (1px N<11, 2px "
                          "11..18, 3px N>18). If omitted, the JSON `spacing` key is "
                          "used, else 'auto'.")
     ap.add_argument("--quiet", action="store_true")

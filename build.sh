@@ -44,7 +44,7 @@ METADATA_OPTIONS=""
 PROP_TYPE="sans"
 
 # Proportional inter-glyph gap: the proportional advance is (ink-width + gap) ×
-# 128. A pixel count, or "auto" (scale with strike size N: 1px N<=10, 2px 11..18,
+# 128. A pixel count, or "auto" (scale with strike size N: 1px N<11, 2px 11..18,
 # 3px N>18). EMPTY = "let each strike decide" — png-to-ttf then reads the strike
 # JSON's `spacing` key, falling back to "auto". Precedence: --spacing V (forces
 # every strike, skips the prompt) > a "spacing" key in default-metadata.json >
@@ -1132,7 +1132,7 @@ show_help() {
     echo "                   \"yes\" — version = keep, Nerd Fonts = no — which is"
     echo "                   why this isn't --yes. Builds ALL strikes (both variants)."
     echo "  --spacing V      Force the proportional inter-glyph gap for ALL strikes:"
-    echo "                   a pixel count, or 'auto' (scale with size: 1px N≤10,"
+    echo "                   a pixel count, or 'auto' (scale with size: 1px N<11,"
     echo "                   2px 11–18, 3px N>18). Skips the prompt. If not given,"
     echo "                   each strike's JSON \`spacing\` key decides (else auto)."
     echo "                   Mono is unaffected."
