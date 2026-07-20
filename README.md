@@ -11,11 +11,11 @@ its own pixel design, drawn for one target size.
 
 ![All the available stikes of `quanta-strike`](docs/quanta-strikes.avif)
 
-![The "Quick brown fox" panagram in all the strikes](docs/quanta-strikes-panagram.avif)
-
 The build works straight from pixel sheets. Each strike is a PNG plus a JSON file. A
 pipeline compiles that pair into fonts. It adds proper metadata and extra OpenType
 features along the way.
+
+![The "Quick brown fox" panagram in all the strikes](docs/quanta-strikes-panagram.avif)
 
 ## Use it on the web
 
