@@ -4,16 +4,18 @@
   <img src="docs/quanta-strike.png" alt="quanta-strike shown at every strike size">
 </p>
 
-A modern pixel typeface. I draw each size by hand. Most fonts take one design and stretch
-it to every size. quanta-strike does not. It ships a family of *strikes*. Each strike is
-its own pixel design, drawn for one target size. Text stays crisp at the size you drew it
-for. It resamples nothing.
+A modern pixel typeface. I draw each size by hand. Pixels shouldn't be scaled by non-integer factors. That's why quanta-strike ships a family of _strikes_. Each strike is
+its own pixel design, drawn for one target size.
+
+📖 **Read the story:** [dithernaut.com/posts/pixel-scaling](https://dithernaut.com/posts/pixel-scaling)
+
+![All the available stikes of `quanta-strike`](docs/quanta-strikes.avif)
+
+![The "Quick brown fox" panagram in all the strikes](docs/quanta-strikes-panagram.avif)
 
 The build works straight from pixel sheets. Each strike is a PNG plus a JSON file. A
 pipeline compiles that pair into fonts. It adds proper metadata and extra OpenType
 features along the way.
-
-📖 **Read the story:** [dithernaut.com/posts/pixel-scaling](https://dithernaut.com/posts/pixel-scaling)
 
 ## Use it on the web
 
@@ -34,7 +36,7 @@ import "@dithernaut/quanta-strike/utilities.css";
 ```
 
 ```html
-<p class="qs-16">Sharp at sixteen pixels.</p>
+<p class="qs-16">Sixteen pixels paragraph.</p>
 <code class="qs-12-mono">const pixel = 1;</code>
 ```
 
@@ -50,7 +52,10 @@ import "@dithernaut/quanta-strike/16.css";
 No build step? Link the CDN copy.
 
 ```html
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@dithernaut/quanta-strike/utilities.css">
+<link
+  rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/@dithernaut/quanta-strike/utilities.css"
+/>
 ```
 
 ### Scalable mode
@@ -64,8 +69,14 @@ import "@dithernaut/quanta-strike";
 You get a custom property per strike. Pair each one with its size:
 
 ```css
-h1   { font-family: var(--font-strike-32); font-size: 2rem; }
-body { font-family: var(--font-strike-16); font-size: 1rem; }
+h1 {
+  font-family: var(--font-strike-32);
+  font-size: 2rem;
+}
+body {
+  font-family: var(--font-strike-16);
+  font-size: 1rem;
+}
 ```
 
 This costs you a little setup and buys you a zoom knob. See
@@ -89,8 +100,8 @@ at every size in between. So bind them in the same rule and never split them.
 Never set the size alone. Never set the family alone. The `.qs-N` classes exist to
 make that impossible.
 
-| strike | class | custom property |
-|--------|-------|-----------------|
+| strike             | class    | custom property    |
+| ------------------ | -------- | ------------------ |
 | `quanta-strike-6`  | `.qs-6`  | `--font-strike-6`  |
 | `quanta-strike-10` | `.qs-10` | `--font-strike-10` |
 | `quanta-strike-12` | `.qs-12` | `--font-strike-12` |
@@ -108,12 +119,15 @@ and the strikes stay in proportion with each other.
 Size your text in `rem` and move the root:
 
 ```css
-html { font-size: 100%; }  /* 1 source pixel = 1 CSS px */
-html { font-size: 200%; }  /* 1 source pixel = 2 CSS px, still crisp */
+html {
+  font-size: 100%;
+} /* 1 source pixel = 1 CSS px */
+html {
+  font-size: 200%;
+} /* 1 source pixel = 2 CSS px, still crisp */
 ```
 
-Whole multiples stay sharp. This is integer scaling, the same trick an emulator
-uses. Land between them and the edges go soft, which is sometimes what you want.
+The "pixels" of each font stay the same size.
 `scripts/pixel-scale.py` does the same job at build time.
 
 The `.qs-N` classes opt out of this on purpose. They use `px`, so they ignore the
@@ -153,8 +167,14 @@ Tailwind names steps semantically, so you decide which strike each step means.
 }
 
 @layer base {
-  body { font-family: var(--font-strike-16); font-size: var(--text-base); }
-  h1   { font-family: var(--font-strike-32); font-size: var(--text-2xl); }
+  body {
+    font-family: var(--font-strike-16);
+    font-size: var(--text-base);
+  }
+  h1 {
+    font-family: var(--font-strike-32);
+    font-size: var(--text-2xl);
+  }
 }
 ```
 
@@ -167,10 +187,16 @@ root, so it pairs with `--font-strike-16`. Change one and you must change the ot
 whole pair at a breakpoint.
 
 ```css
-.title { font-family: var(--font-strike-16); font-size: 16px; }
+.title {
+  font-family: var(--font-strike-16);
+  font-size: 16px;
+}
 
 @media (min-width: 48rem) {
-  .title { font-family: var(--font-strike-32); font-size: 32px; }
+  .title {
+    font-family: var(--font-strike-32);
+    font-size: 32px;
+  }
 }
 ```
 
@@ -186,11 +212,10 @@ The build makes every strike twice from the same art.
 Each one is its own family. Mono is not a style of the proportional family. Both hold
 the pixel grid. Trimming only drops empty pixel columns, so the pixel never moves.
 
+## Build locally
 
-## Build it yourself
-
-You need [FontForge](https://fontforge.org/) with Python bindings
-(`brew install fontforge`) and Python 3.
+- Download [FontForge](https://fontforge.org/) with Python bindings
+  (`brew install fontforge`) and Python 3.
 
 ```bash
 ./build.sh                  # interactive
@@ -278,21 +303,21 @@ field by field.
 
 ## Scripts
 
-| script | does |
-|--------|------|
+| script                             | does                                                                                                                                         |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `scripts/png-to-ttf.py`            | Compiles a strike's PNG and JSON into a TTF. 1 pixel becomes 128 units. `--proportional` trims each glyph instead of using the mono advance. |
-| `scripts/font-metadata-patcher.py` | Sets family and style names, OS-2, weight, width, version, copyright, and URLs. It never touches metrics, so the pixel grid holds. |
-| `scripts/add-small-caps.py`        | Adds `smcp` and `c2sc` from the font's own small-caps, lowercase, or capital glyphs. |
-| `scripts/add-old-style-figures.py` | Adds `onum`. It maps digits to circled, superscript, or subscript figures. |
-| `scripts/anchor-em.py`             | Anchors the em to N times 128 and sets ink-based line metrics. It never rescales glyphs. |
-| `scripts/pixel-scale.py`           | Scales every strike by one shared factor on top of the anchor. Factor 1 does nothing. |
-| `scripts/verify-pixel-grid.py`     | Guards the build. It checks that every strike shares the same pixel and every glyph sits on the 128 grid. The build stops if this fails. |
-| `scripts/generate-nerd-fonts`      | Patches every `.ttf` in a folder with Nerd Font icons and writes them to a sibling `-nerd` folder. |
-| `scripts/convert-woff2.py`         | Mirrors `build/ttf` to `build/woff2`. It skips `-nerd` unless you pass `--include-nerd`. |
-| `scripts/generate-css.py`          | Writes the drop-in CSS from the built WOFF2 files. It pairs each family with its size. |
-| `scripts/rename-family.py`         | Sets a font's family and style naming and keeps the rest of the metadata. |
-| `build-package.sh`         | Assembles the npm package from a finished build. |
-| `scripts/default-metadata.json`    | Not a script. Holds the author, licence, and URL defaults the build applies instead of asking. |
+| `scripts/font-metadata-patcher.py` | Sets family and style names, OS-2, weight, width, version, copyright, and URLs. It never touches metrics, so the pixel grid holds.           |
+| `scripts/add-small-caps.py`        | Adds `smcp` and `c2sc` from the font's own small-caps, lowercase, or capital glyphs.                                                         |
+| `scripts/add-old-style-figures.py` | Adds `onum`. It maps digits to circled, superscript, or subscript figures.                                                                   |
+| `scripts/anchor-em.py`             | Anchors the em to N times 128 and sets ink-based line metrics. It never rescales glyphs.                                                     |
+| `scripts/pixel-scale.py`           | Scales every strike by one shared factor on top of the anchor. Factor 1 does nothing.                                                        |
+| `scripts/verify-pixel-grid.py`     | Guards the build. It checks that every strike shares the same pixel and every glyph sits on the 128 grid. The build stops if this fails.     |
+| `scripts/generate-nerd-fonts`      | Patches every `.ttf` in a folder with Nerd Font icons and writes them to a sibling `-nerd` folder.                                           |
+| `scripts/convert-woff2.py`         | Mirrors `build/ttf` to `build/woff2`. It skips `-nerd` unless you pass `--include-nerd`.                                                     |
+| `scripts/generate-css.py`          | Writes the drop-in CSS from the built WOFF2 files. It pairs each family with its size.                                                       |
+| `scripts/rename-family.py`         | Sets a font's family and style naming and keeps the rest of the metadata.                                                                    |
+| `build-package.sh`                 | Assembles the npm package from a finished build.                                                                                             |
+| `scripts/default-metadata.json`    | Not a script. Holds the author, licence, and URL defaults the build applies instead of asking.                                               |
 
 ## Features
 
@@ -301,14 +326,13 @@ field by field.
   licence URLs.
 - **Small caps.** The build adds `smcp` and `c2sc` from the font's own glyphs.
 - **Old-style figures.** The build adds `onum` from the font's own alternate digits.
-- **Nerd Fonts.** Icon-patched mono strikes for the terminal. Opt in to get them.
+- **Nerd Fonts.** Icon-patched mono strikes for the terminal. Shipped with each release.
 - **WOFF2 and CSS.** Compact web fonts for both variants, plus the CSS to wire them
   up.
 
 ## Licence
 
-The fonts use **OFL-1.1**, the SIL Open Font License. Google Fonts accepts only
-OFL-1.1, Apache-2.0, or UFL, so that settles it. The OFL allows redistribution,
+The fonts use **OFL-1.1**, the SIL Open Font License. The OFL allows redistribution,
 modification, bundling, and donations. It forbids selling the font on its own.
 
 The licence lives in [`OFL.txt`](OFL.txt). `build.sh` copies it into every output
