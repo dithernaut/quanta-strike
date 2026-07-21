@@ -171,13 +171,13 @@ First publish only:
 Every release:
 
 - [ ] update the version
-- [ ] `./build.sh --nerd-fonts`, answer the version prompt
-- [ ] Pixel-grid guard passed
-- [ ] Font version matches `VERSION`
+- [ ] `./build.sh --nerd-fonts -y`
+  - [ ] Pixel-grid guard passed
+  - [ ] Font version matches `VERSION`
 - [ ] `./build-package.sh`, version line matches
 - [ ] `git add VERSION package/package.json && git commit -m "Release $(cat VERSION)"`
 - [ ] `git tag v$(cat VERSION) && git push && git push --tags`
-- [ ] `rm -rf build/tmp && find build -name .DS_Store -delete`
+- [ ] `rm -rf build/tmp && find build -name .DS_Store -delete` (optional, shouldn't be there anymore)
 - [ ] `zip -r quanta-strike-$(cat VERSION).zip build`, attach to the GitHub release
 - [ ] `cd package && npm pack --dry-run`, read the list
 - [ ] `npm publish`
