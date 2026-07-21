@@ -7,7 +7,7 @@ its own pixel design, drawn for one target size.
 
 📖 **Read the story:** [dithernaut.com/posts/pixel-scaling](https://dithernaut.com/posts/pixel-scaling)
 
-![All the available stikes of `quanta-strike`](docs/quanta-strikes.avif)
+![All the available strikes of `quanta-strike`](docs/quanta-strikes.avif)
 
 The build works straight from pixel sheets. Each strike is a PNG plus a JSON file. A
 pipeline compiles that pair into fonts. It adds proper metadata and extra OpenType
@@ -20,7 +20,7 @@ features along the way.
 Install the package.
 
 ```bash
-npm install @dithernaut/quanta-strike
+npm install quanta-strike
 ```
 
 Then pick one of two ways to use it.
@@ -30,7 +30,7 @@ Then pick one of two ways to use it.
 Import the utilities and use the class. Nothing else to set up.
 
 ```js
-import "@dithernaut/quanta-strike/utilities.css";
+import "quanta-strike/utilities.css";
 ```
 
 ```html
@@ -44,7 +44,7 @@ Every class pins its own size in `px`, so one source pixel always covers exactly
 Need one size only? Import one file. It carries its own classes.
 
 ```js
-import "@dithernaut/quanta-strike/16.css";
+import "quanta-strike/16.css";
 ```
 
 No build step? Link the CDN copy.
@@ -52,7 +52,7 @@ No build step? Link the CDN copy.
 ```html
 <link
   rel="stylesheet"
-  href="https://cdn.jsdelivr.net/npm/@dithernaut/quanta-strike/utilities.css"
+  href="https://cdn.jsdelivr.net/npm/quanta-strike/utilities.css"
 />
 ```
 
@@ -61,7 +61,7 @@ No build step? Link the CDN copy.
 Import the fonts alone and wire them into your own type scale.
 
 ```js
-import "@dithernaut/quanta-strike";
+import "quanta-strike";
 ```
 
 You get a custom property per strike. Pair each one with its size:
@@ -155,7 +155,7 @@ Tailwind names steps semantically, so you decide which strike each step means.
 
 ```css
 @import "tailwindcss";
-@import "@dithernaut/quanta-strike";
+@import "quanta-strike";
 
 @theme {
   --text-base: 1rem;

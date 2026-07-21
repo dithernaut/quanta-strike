@@ -1,11 +1,16 @@
-# @dithernaut/quanta-strike
+# quanta-strike
 
-A pixel typeface with one font per size. A "bitmap" font for the modern web.
+<img src="https://raw.githubusercontent.com/dithernaut/quanta-strike/main/docs/quanta-strike.png" alt="quanta-strike shown at different strike sizes" width="100%">
 
-It ships a separate font for each size, and each one is drawn by hand. 
+A modern pixel typeface. I draw each size by hand. Pixels shouldn't be scaled by non-integer factors. That's why quanta-strike ships a familty of _strikes_. Each strike is
+its own pixel design, drawn for one target size.
+
+📖 **Read the story:** [dithernaut.com/posts/pixel-scaling](https://dithernaut.com/posts/pixel-scaling)
+
+![All the available strikes of `quanta-strike`](https://raw.githubusercontent.com/dithernaut/quanta-strike/main/docs/quanta-strikes.avif)
 
 ```bash
-npm install @dithernaut/quanta-strike
+npm install quanta-strike
 ```
 
 ## Use it
@@ -13,7 +18,7 @@ npm install @dithernaut/quanta-strike
 Import the CSS, then use the class.
 
 ```js
-import "@dithernaut/quanta-strike";
+import "quanta-strike";
 ```
 
 ```html
@@ -26,7 +31,7 @@ That is the whole setup. The class sets the family and the size together.
 Import one size instead of all eight if you only need one:
 
 ```js
-import "@dithernaut/quanta-strike/16.css";
+import "quanta-strike/16.css";
 ```
 
 ## Sizes
@@ -35,9 +40,9 @@ The package ships eight strikes: `6`, `10`, `12`, `14`, `16`, `18`, `20`, `32`.
 
 Each strike gets two classes.
 
-| class | use for |
-|-------|---------|
-| `.qs-16` | body text and UI |
+| class         | use for            |
+| ------------- | ------------------ |
+| `.qs-16`      | body text and UI   |
 | `.qs-16-mono` | code and terminals |
 
 Swap the number for any size in the list.
@@ -65,17 +70,23 @@ You cannot scale this font with `clamp()`. Change the size and you must change t
 family too. So swap the whole class at a breakpoint:
 
 ```css
-.title { font-family: var(--font-strike-16); font-size: 16px; }
+.title {
+  font-family: var(--font-strike-16);
+  font-size: 16px;
+}
 
 @media (min-width: 48rem) {
-  .title { font-family: var(--font-strike-32); font-size: 32px; }
+  .title {
+    font-family: var(--font-strike-32);
+    font-size: 32px;
+  }
 }
 ```
 
 ## What you get
 
-- `@dithernaut/quanta-strike` loads every strike.
-- `@dithernaut/quanta-strike/16.css` loads one strike.
+- `quanta-strike` loads every strike.
+- `quanta-strike/16.css` loads one strike.
 - `--font-strike-16` and `--font-strike-16-mono` custom properties for every size.
 - `.qs-16` and `.qs-16-mono` classes for every size.
 

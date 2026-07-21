@@ -130,19 +130,16 @@ Then publish.
 cd package && npm publish
 ```
 
-The first publish of a scoped package needs `--access public`. The `publishConfig`
-key in `package.json` already sets that, so the plain command works.
-
 ## 7. Check what you shipped
 
 ```bash
-npm view @dithernaut/quanta-strike version
+npm view quanta-strike version
 ```
 
 Load the CDN copy in a browser and confirm the fonts resolve:
 
 ```
-https://cdn.jsdelivr.net/npm/@dithernaut/quanta-strike/utilities.css
+https://cdn.jsdelivr.net/npm/quanta-strike/utilities.css
 ```
 
 jsDelivr caches for a few minutes after a publish, so give it a moment.
@@ -181,4 +178,4 @@ Every release:
 - [ ] `zip -r quanta-strike-$(cat VERSION).zip build`, attach to the GitHub release
 - [ ] `cd package && npm pack --dry-run`, read the list
 - [ ] `npm publish`
-- [ ] `npm view @dithernaut/quanta-strike version` shows the new number
+- [ ] `npm view quanta-strike version` shows the new number

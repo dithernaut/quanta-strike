@@ -51,7 +51,7 @@ python3 "$SCRIPT_DIR/scripts/generate-css.py" "$WOFF2_DIR" \
     --out "$PKG_DIR" --flat --url-prefix "fonts/"
 
 # Per-strike files publish as 16.css, not quanta-strike-16.css, so an import
-# reads "@dithernaut/quanta-strike/16.css". Digits only, so the utilities file
+# reads "quanta-strike/16.css". Digits only, so the utilities file
 # below is not caught by this.
 for f in "$PKG_DIR"/quanta-strike-[0-9]*.css; do
     [ -e "$f" ] || continue
@@ -60,7 +60,7 @@ for f in "$PKG_DIR"/quanta-strike-[0-9]*.css; do
     mv "$f" "$PKG_DIR/$size.css"
 done
 
-# Same idea: "@dithernaut/quanta-strike/utilities.css".
+# Same idea: "quanta-strike/utilities.css".
 mv "$PKG_DIR/quanta-strike-utilities.css" "$PKG_DIR/utilities.css"
 
 cp "$LICENSE_FILE" "$PKG_DIR/"

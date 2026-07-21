@@ -1,5 +1,5 @@
 {
-  "name": "@dithernaut/quanta-strike",
+  "name": "quanta-strike",
   "version": "0.1.2",
   "description": "A pixel typeface with one font per size. Every strike is drawn by hand and stays sharp at the size it was drawn for.",
   "keywords": [
@@ -47,8 +47,5 @@
     "fonts/",
     "OFL.txt",
     "README.md"
-  ],
-  "publishConfig": {
-    "access": "public"
-  }
+  ]
 }
