@@ -1,8 +1,6 @@
 # quanta-strike
 
-<p align="center">
-  <img src="docs/quanta-strike.png" alt="quanta-strike shown at every strike size">
-</p>
+<img src="docs/quanta-strike.png" alt="quanta-strike shown at different strike sizes" width="100%">
 
 A modern pixel typeface. I draw each size by hand. Pixels shouldn't be scaled by non-integer factors. That's why quanta-strike ships a family of _strikes_. Each strike is
 its own pixel design, drawn for one target size.

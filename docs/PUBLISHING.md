@@ -68,27 +68,43 @@ to travel with them.
 find build -name OFL.txt
 ```
 
-## 3. Commit
-
-Commit the source and the new `VERSION`. The build output stays out of git.
+## 3. Assemble the npm package
 
 ```bash
-git add VERSION
-git commit -m "Release 0.1.0"
-git tag v0.1.0
+./build-package.sh
+```
+
+It copies the WOFF2 files into `package/fonts/`, generates the CSS that points at
+them, copies the licence, and writes the version it found in the fonts into
+`package/package.json`. The generated fonts and CSS stay gitignored.
+
+Read the version line it prints. It must match `VERSION`.
+
+```
+Version: 0.1.0 (fonts and package agree)
+```
+
+## 4. Commit
+
+Commit both version files together. The build output stays out of git.
+
+```bash
+git add VERSION package/package.json
+git commit -m "Release $(cat VERSION)"
+git tag v$(cat VERSION)
 git push && git push --tags
 ```
 
-Tag the commit that built the fonts. Then anyone can rebuild that exact release.
+Tag that commit. Then anyone can rebuild that exact release.
 
-## 4. Publish the GitHub release
+## 5. Publish the GitHub release
 
 Zip the build folder and attach it to a release on the tag.
 
 ```bash
 rm -rf build/tmp                    # staging, only present if a build failed
 find build -name .DS_Store -delete  # macOS clutter
-zip -r quanta-strike-0.1.0.zip build
+zip -r quanta-strike-$(cat VERSION).zip build
 ```
 
 Both cleanup lines matter. `build/tmp` holds intermediate TTFs, and `.DS_Store` ships
@@ -100,20 +116,7 @@ designer installing fonts and a developer wiring up a site.
 Create the release on GitHub, point it at the tag, and attach the zip. Name the
 release after the version.
 
-## 5. Publish the npm package
-
-```bash
-./build-package.sh
-```
-
-It copies the WOFF2 files into `package/fonts/`, generates the CSS that points at
-them, copies the licence, and writes the version it found in the fonts.
-
-Read the version line it prints. It must match `VERSION`.
-
-```
-Version: 0.1.0 (fonts and package agree)
-```
+## 6. Publish the npm package
 
 Look inside the tarball before you send it:
 
@@ -130,7 +133,7 @@ cd package && npm publish
 The first publish of a scoped package needs `--access public`. The `publishConfig`
 key in `package.json` already sets that, so the plain command works.
 
-## 6. Check what you shipped
+## 7. Check what you shipped
 
 ```bash
 npm view @dithernaut/quanta-strike version
@@ -144,16 +147,17 @@ https://cdn.jsdelivr.net/npm/@dithernaut/quanta-strike/utilities.css
 
 jsDelivr caches for a few minutes after a publish, so give it a moment.
 
-
 ## Quick reference
 
 ```bash
 ./build.sh --nerd-fonts        # 1. build, answer the version prompt
 cat VERSION                    # 2. check the number
-git tag v$(cat VERSION)        # 3. tag the source
-zip -r quanta-strike.zip build # 4. attach to a GitHub release
-./build-package.sh             # 5. assemble the package
-cd package && npm publish      #    send it
+./build-package.sh             # 3. assemble the package
+git add VERSION package/package.json
+git commit -m "Release $(cat VERSION)"
+git tag v$(cat VERSION) && git push && git push --tags
+zip -r quanta-strike-$(cat VERSION).zip build   # 5. GitHub release
+cd package && npm publish      # 6. send the package
 ```
 
 ## Checklist
@@ -166,13 +170,15 @@ First publish only:
 
 Every release:
 
+- [ ] update the version
 - [ ] `./build.sh --nerd-fonts`, answer the version prompt
 - [ ] Pixel-grid guard passed
 - [ ] Font version matches `VERSION`
-- [ ] `git commit`, `git tag v$(cat VERSION)`, `git push --tags`
+- [ ] `./build-package.sh`, version line matches
+- [ ] `git add VERSION package/package.json && git commit -m "Release $(cat VERSION)"`
+- [ ] `git tag v$(cat VERSION) && git push && git push --tags`
 - [ ] `rm -rf build/tmp && find build -name .DS_Store -delete`
 - [ ] `zip -r quanta-strike-$(cat VERSION).zip build`, attach to the GitHub release
-- [ ] `./build-package.sh`, version line matches
 - [ ] `cd package && npm pack --dry-run`, read the list
 - [ ] `npm publish`
 - [ ] `npm view @dithernaut/quanta-strike version` shows the new number
