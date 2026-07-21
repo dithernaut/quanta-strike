@@ -144,7 +144,6 @@ https://cdn.jsdelivr.net/npm/@dithernaut/quanta-strike/utilities.css
 
 jsDelivr caches for a few minutes after a publish, so give it a moment.
 
-
 ## Quick reference
 
 ```bash
@@ -166,6 +165,7 @@ First publish only:
 
 Every release:
 
+- [ ] update the version
 - [ ] `./build.sh --nerd-fonts`, answer the version prompt
 - [ ] Pixel-grid guard passed
 - [ ] Font version matches `VERSION`
