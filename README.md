@@ -2,52 +2,42 @@
 
 <img src="docs/quanta-strike.png" alt="quanta-strike shown at different strike sizes" width="100%">
 
-A modern pixel typeface. I draw each size by hand. Pixels shouldn't be scaled by non-integer factors. That's why quanta-strike ships a family of _strikes_. Each strike is
-its own pixel design, drawn for one target size.
+A modern pixel typeface. I draw each size by hand. Non-integer scaling ruins
+pixels, so quanta-strike ships a family of _strikes_. Each strike is its own
+design for one target size.
 
 📖 **Read the story:** [dithernaut.com/posts/pixel-scaling](https://dithernaut.com/posts/pixel-scaling)
 
 ![All the available strikes of `quanta-strike`](docs/quanta-strikes.avif)
 
-The build works straight from pixel sheets. Each strike is a PNG plus a JSON file. A
-pipeline compiles that pair into fonts. It adds proper metadata and extra OpenType
-features along the way.
+![The "Quick brown fox" pangram in all the strikes](docs/quanta-strikes-panagram.avif)
 
-![The "Quick brown fox" panagram in all the strikes](docs/quanta-strikes-panagram.avif)
-
-## Use it on the web
-
-Install the package.
+## Install
 
 ```bash
 npm install quanta-strike
 ```
 
-Then pick one of two ways to use it.
+## Use it
 
-### Locked mode
-
-Import the utilities and use the class. Nothing else to set up.
+Import the utilities, then use a class. The class sets family and size together.
 
 ```js
 import "quanta-strike/utilities.css";
 ```
 
 ```html
-<p class="qs-16">Sixteen pixels paragraph.</p>
+<p class="qs-16">Sixteen pixels.</p>
 <code class="qs-12-mono">const pixel = 1;</code>
 ```
 
-Every class pins its own size in `px`, so one source pixel always covers exactly
-1 CSS px. Nothing on the page can knock it off the grid.
-
-Need one size only? Import one file. It carries its own classes.
+One strike only:
 
 ```js
 import "quanta-strike/16.css";
 ```
 
-No build step? Link the CDN copy.
+Or the CDN:
 
 ```html
 <link
@@ -56,47 +46,41 @@ No build step? Link the CDN copy.
 />
 ```
 
-### Scalable mode
+## Type scale (Tailwind)
 
-Import the fonts alone and wire them into your own type scale.
+Tailwind names sizes by role (`text-base`, `text-lg`, `text-xl`). Strikes are
+fixed pixel designs (`12`, `14`, `16`). You have to pick which strike is body
+text. That pick is the base preset. It maps the whole ladder so every `text-*`
+step keeps size and family paired.
 
-```js
-import "quanta-strike";
-```
-
-You get a custom property per strike. Pair each one with its size:
+A dense body often looks best on strike 12. Import `base-12`, then zoom the
+page with the root font-size:
 
 ```css
-h1 {
-  font-family: var(--font-strike-32);
-  font-size: 2rem;
-}
-body {
-  font-family: var(--font-strike-16);
-  font-size: 1rem;
+@import "tailwindcss";
+@import "quanta-strike";
+@import "quanta-strike/theme/base-12.css";
+
+html {
+  font-size: 200%; /* zoom. 100% = 1 source pixel per CSS px */
 }
 ```
 
-This costs you a little setup and buys you a zoom knob. See
-[Scale the whole thing](#scale-the-whole-thing) below.
+`text-base` is now strike 12. Smaller and larger steps take the neighboring
+strikes. Rem sizes stay at `N / 16`, so the zoom scales every strike together.
 
-Prefer to host the files yourself? Grab the release zip. It carries the WOFF2 fonts,
-the CSS, and the licence.
+Want body at strike 16 and `1rem` at a 100% root? Use `base-16` instead:
+
+```css
+@import "quanta-strike/theme/base-16.css";
+```
+
+Every strike has a preset: `theme/base-6.css` through `theme/base-32.css`.
 
 ## The one rule
 
-The size and the family go together. `quanta-strike-16` is sharp at 16px. It blurs
-at every size in between. So bind them in the same rule and never split them.
-
-```css
-.headline {
-  font-family: var(--font-strike-32);
-  font-size: 32px;
-}
-```
-
-Never set the size alone. Never set the family alone. The `.qs-N` classes exist to
-make that impossible.
+Size and family travel together. `quanta-strike-16` is sharp at 16px. It blurs
+everywhere else. Bind both in the same rule. Never split them.
 
 | strike             | class    | custom property    |
 | ------------------ | -------- | ------------------ |
@@ -109,109 +93,28 @@ make that impossible.
 | `quanta-strike-20` | `.qs-20` | `--font-strike-20` |
 | `quanta-strike-32` | `.qs-32` | `--font-strike-32` |
 
-## Scale the whole thing
+The `.qs-N` classes use `px`. They ignore the root font-size and stay at 1 CSS
+px per source pixel.
 
-Every strike shares one pixel size. So one knob scales the entire system at once,
-and the strikes stay in proportion with each other.
+## Mono
 
-Size your text in `rem` and move the root:
-
-```css
-html {
-  font-size: 100%;
-} /* 1 source pixel = 1 CSS px */
-html {
-  font-size: 200%;
-} /* 1 source pixel = 2 CSS px, still crisp */
-```
-
-The "pixels" of each font stay the same size.
-`scripts/pixel-scale.py` does the same job at build time.
-
-The `.qs-N` classes opt out of this on purpose. They use `px`, so they ignore the
-root and stay locked at 1.0.
-
-## Switch to mono
-
-Add `.qs-mono` to any element. Every strike inside it turns mono, and no font-size
-changes at all.
+Add `.qs-mono` to a subtree. Every strike under it switches to mono. Sizes stay
+put. The type scale never notices.
 
 ```html
-<article>
-  <p>Proportional text.</p>
-  <div class="qs-mono">
-    <p>The same sizes, now mono.</p>
-  </div>
-</article>
+<div class="qs-mono">
+  <p class="text-base">Mono body.</p>
+</div>
 ```
 
-The class redefines the `--font-strike-N` properties on that subtree. Your type
-scale never learns about it.
-
-## Tailwind
-
-Import the fonts, then pick a theme preset. The preset sets the Tailwind type
-scale and pairs every `text-*` step with its strike so size and family stay
-together.
-
-```css
-@import "tailwindcss";
-@import "quanta-strike";
-@import "quanta-strike/theme/base-16.css";
-
-/* optional uniform zoom — 100% keeps 1 source pixel = 1 CSS px */
-html {
-  font-size: 100%;
-}
-```
-
-`base-16` is the default story: `text-base` is strike 16 at `1rem`. Want a denser
-body? Swap the preset:
-
-```css
-@import "quanta-strike/theme/base-12.css";
-```
-
-That makes `text-base` strike 12 at `0.75rem`, and reassigns the rest of the
-ladder around it. Rem sizes are always `N / 16 × 1rem` — choosing a different
-base only moves which strike is `text-base`, it does not change the rem math.
-That keeps the zoom knob honest: `html { font-size: 187.5%; }` scales every
-strike by the same factor.
-
-| preset    | `text-base`  | ladder                                                     |
-| --------- | ------------ | ---------------------------------------------------------- |
-| `base-12` | 12 @ 0.75rem | xs→6 … **base→12** … 4xl→32 (fits the stock Tailwind names) |
-| `base-16` | 16 @ 1rem    | 3xs→6 … **base→16** … 2xl→32 (adds `text-2xs` / `text-3xs`) |
-
-Every strike gets a `theme/base-N.css`. Neighbors fill outward from base (`sm` /
-`xs` / `2xs`… below, `lg` / `xl` / `2xl`… above). Leftover larger Tailwind steps
-(`text-5xl` and up) alias onto the biggest strike so they cannot ship unpaired.
-
-`.qs-mono` still works: it redefines the `--font-strike-N` vars, and the theme
-utilities read those vars.
-
-Hand-rolling the scale is still fine if a preset is not what you want — keep
-each rem value and its `--font-strike-N` in the same rule:
-
-```css
-@theme {
-  --text-base: 0.75rem;
-  --text-base--line-height: 1;
-}
-
-@layer utilities {
-  .text-base {
-    font-family: var(--font-strike-12);
-    font-size: var(--text-base);
-    line-height: 1;
-  }
-}
-```
+Each strike also ships as its own family: proportional for UI, mono for code.
+Mono is not a style of the proportional family. The mono build also gets Nerd
+Font icons.
 
 ## Responsive text
 
-`clamp()` will not work here. Change the size and you change the font. So swap the
-whole pair at a breakpoint.
+`clamp()` will not work. Change the size and you must change the family. Swap
+the whole pair at a breakpoint.
 
 ```css
 .title {
@@ -227,148 +130,45 @@ whole pair at a breakpoint.
 }
 ```
 
-### Two variants per size
-
-The build makes every strike twice from the same art.
-
-- **proportional** (`quanta-strike-16`, class `.qs-16`) trims each glyph to its own
-  ink. Use it for body text and UI.
-- **mono** (`quanta-strike-16-mono`, class `.qs-16-mono`) fixes the advance width.
-  Use it for code, terminals, and TUIs. This variant also gets Nerd Font icons.
-
-Each one is its own family. Mono is not a style of the proportional family. Both hold
-the pixel grid. Trimming only drops empty pixel columns, so the pixel never moves.
-
 ## Build locally
 
-- Download [FontForge](https://fontforge.org/) with Python bindings
-  (`brew install fontforge`) and Python 3.
+You need [FontForge](https://fontforge.org/) with Python bindings
+(`brew install fontforge`) and Python 3.
 
 ```bash
 ./build.sh                  # interactive
-./build.sh --defaults       # take every default, ask nothing (-y works too)
-./build.sh -y --nerd-fonts  # add Nerd Font icons (mono only, the slow step)
-./build.sh -y --spacing 2   # force a 2px proportional gap on every strike
+./build.sh --defaults       # CI / release defaults (-y works too)
+./build.sh -y --nerd-fonts  # add Nerd Font icons (mono only)
+./build.sh -y --spacing 2   # force a 2px proportional gap
 ```
 
-The interactive build walks you through it. You pick the strikes and the optional
-features. It builds both variants for every strike, proportional first, then mono. It
-writes the WOFF2 files and the CSS. It patches Nerd Fonts last, and only if you ask.
-
-`--defaults` answers every prompt with its default and builds every strike. Use it for
-CI or a repeatable release. The defaults are not all "yes". The version keeps. Nerd
-Fonts stay off. That is why the flag is not `--yes`. Every prompt still prints the
-answer it took, so the log stays honest.
-
-The build reads author, licence, URLs, and type from `scripts/default-metadata.json`, so it
-does not ask for them. Edit that file to change them. Delete it to get the prompts
-back. The build always asks for the version. That one is a per-release choice.
-
-### Versions
-
-The release number lives in [`VERSION`](VERSION) at the repo root. One line, one
-semver. That file is the source of truth, and everything downstream copies it.
-
-```
-VERSION  →  the fonts  →  package.json
-```
-
-Every build asks you for the bump and shows the current number. Pick patch, minor,
-major, a custom value, or keep. A build that succeeds writes the result back to
-`VERSION`, so the next build starts from the right place.
-
-Check the current version four ways:
+The release number lives in [`VERSION`](VERSION). A successful build writes the
+bump back. To publish fonts and the npm package together, follow
+[docs/PUBLISHING.md](docs/PUBLISHING.md).
 
 ```bash
-cat VERSION                                    # the source of truth
-./build.sh                                     # the prompt shows it, and so does the summary
-python3 -c "import fontforge; print(fontforge.open('build/ttf/quanta-strike/quanta-strike-16-regular.ttf').version)"
-```
-
-The last one reads it straight out of a built font, which is the real proof. On a
-Mac you can also open the TTF in Font Book and read the version there.
-
-### Publish the npm package
-
-```bash
-./build.sh               # build the fonts and CSS, answer the version prompt
-./build-package.sh       # copy them into package/, version and all
+./build.sh
+./build-package.sh
 cd package && npm publish
 ```
-
-`build-package.sh` reads the version out of a built font and writes it into
-`package/package.json`, so the package always matches the fonts it ships. Nothing
-publishes on its own. You run `npm publish` yourself.
-
-[docs/PUBLISHING.md](docs/PUBLISHING.md) walks through a full release, fonts and package
-together.
 
 ## Layout
 
 ```
-src/                              # the art. the build never touches it
-  quanta-strike-6/regular/quanta-strike-6.{json,png}
-  quanta-strike-10/...
-build/                            # generated. git-ignored
-  tmp/                            #   staging TTFs. removed on success
-  ttf/
-    quanta-strike/                #   proportional strikes
-    quanta-strike-mono/           #   mono strikes
-    quanta-strike-mono-nerd/      #   Nerd Font mono strikes. opt-in
-  woff2/
-    quanta-strike.css             #   @font-face, the vars, the mono swap
-    quanta-strike-utilities.css   #   the .qs-N classes. imports the above
-    quanta-strike-16.css          #   one strike, fonts and classes together
-    theme/base-16.css             #   Tailwind type scale, base = strike 16
-    theme/base-12.css             #   same, base = strike 12 (etc. for every N)
-    quanta-strike/                #   proportional web fonts
-    quanta-strike-mono/           #   mono web fonts
-package/                          # the npm package. build-package.sh fills it
-patcher/                          # vendored Nerd Fonts patcher and glyph sets
+src/           # pixel sheets (PNG + JSON). the build never touches these
+build/         # generated fonts and CSS
+package/       # npm package. build-package.sh fills it
+patcher/       # vendored Nerd Fonts patcher
 ```
 
-[docs/SOURCE-FORMAT.md](docs/SOURCE-FORMAT.md) documents the `src/*.json` pixel-sheet format
-field by field.
-
-## Scripts
-
-| script                             | does                                                                                                                                         |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scripts/png-to-ttf.py`            | Compiles a strike's PNG and JSON into a TTF. 1 pixel becomes 128 units. `--proportional` trims each glyph instead of using the mono advance. |
-| `scripts/font-metadata-patcher.py` | Sets family and style names, OS-2, weight, width, version, copyright, and URLs. It never touches metrics, so the pixel grid holds.           |
-| `scripts/add-small-caps.py`        | Adds `smcp` and `c2sc` from the font's own small-caps, lowercase, or capital glyphs.                                                         |
-| `scripts/add-old-style-figures.py` | Adds `onum`. It maps digits to circled, superscript, or subscript figures.                                                                   |
-| `scripts/anchor-em.py`             | Anchors the em to N times 128 and sets ink-based line metrics. It never rescales glyphs.                                                     |
-| `scripts/pixel-scale.py`           | Scales every strike by one shared factor on top of the anchor. Factor 1 does nothing.                                                        |
-| `scripts/verify-pixel-grid.py`     | Guards the build. It checks that every strike shares the same pixel and every glyph sits on the 128 grid. The build stops if this fails.     |
-| `scripts/generate-nerd-fonts`      | Patches every `.ttf` in a folder with Nerd Font icons and writes them to a sibling `-nerd` folder.                                           |
-| `scripts/convert-woff2.py`         | Mirrors `build/ttf` to `build/woff2`. It skips `-nerd` unless you pass `--include-nerd`.                                                     |
-| `scripts/generate-css.py`          | Writes the drop-in CSS from the built WOFF2 files. It pairs each family with its size, and emits optional Tailwind `theme/base-N.css` presets. |
-| `scripts/rename-family.py`         | Sets a font's family and style naming and keeps the rest of the metadata.                                                                    |
-| `build-package.sh`                 | Assembles the npm package from a finished build.                                                                                             |
-| `scripts/default-metadata.json`    | Not a script. Holds the author, licence, and URL defaults the build applies instead of asking.                                               |
-
-## Features
-
-- **Two variants.** Proportional for text, mono for code.
-- **Metadata.** Per-strike families, semver, licence and copyright, designer and
-  licence URLs.
-- **Small caps.** The build adds `smcp` and `c2sc` from the font's own glyphs.
-- **Old-style figures.** The build adds `onum` from the font's own alternate digits.
-- **Nerd Fonts.** Icon-patched mono strikes for the terminal. Shipped with each release.
-- **WOFF2 and CSS.** Compact web fonts for both variants, plus the CSS to wire them
-  up.
+Pixel-sheet fields: [docs/SOURCE-FORMAT.md](docs/SOURCE-FORMAT.md).
 
 ## Licence
 
-The fonts use **OFL-1.1**, the SIL Open Font License. The OFL allows redistribution,
-modification, bundling, and donations. It forbids selling the font on its own.
-
-The licence lives in [`OFL.txt`](OFL.txt). `build.sh` copies it into every output
-folder that holds fonts. The OFL requires the licence to travel with them, so never
-ship a font folder without it.
+**OFL-1.1**. Redistribute, modify, bundle, donate. Do not sell the font on its
+own. The text lives in [`OFL.txt`](OFL.txt). Ship it with every font folder.
 
 ## Thanks
 
-Thanks to [yal.cc](https://yal.cc) for the inspiration behind the underlying
-algorithm. Go look at [YAL's pixel font generator](https://yal.cc/tools/pixel-font/).
+Thanks to [yal.cc](https://yal.cc) for the inspiration behind the algorithm.
+See [YAL's pixel font generator](https://yal.cc/tools/pixel-font/).
