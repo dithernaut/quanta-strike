@@ -167,8 +167,7 @@ First publish only:
 
 Every release:
 
-- [ ] update the version
-- [ ] `./build.sh --nerd-fonts -y`
+- [ ] `./build.sh --nerd-fonts`
   - [ ] Pixel-grid guard passed
   - [ ] Font version matches `VERSION`
 - [ ] `./build-package.sh`, version line matches

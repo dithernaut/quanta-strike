@@ -652,6 +652,9 @@ read_project_version() {
 }
 
 # Record whatever version this build stamped, so it can be written back.
+# Must be resolved in the parent shell (see resolve_project_version) — never
+# inside a $(...) capture, or the assignment dies with the subshell and
+# VERSION is left untouched even though the fonts were stamped correctly.
 RESOLVED_VERSION=""
 
 write_project_version() {
@@ -663,12 +666,12 @@ write_project_version() {
     print_success "Version $current → $RESOLVED_VERSION (written to $VERSION_FILE)"
 }
 
-# Compute bumped version for a family based on VERSION_STRATEGY
-# Usage: compute_version "picosans"  → prints --version flag or empty string
-compute_version_flag() {
-    local family="$1"
+# Resolve VERSION_STRATEGY → RESOLVED_VERSION once, in the parent shell.
+# Call after ask_version / get_metadata_options; before any build_variant.
+resolve_project_version() {
     local current_version
     current_version=$(read_project_version)
+    RESOLVED_VERSION=""
 
     case "$VERSION_STRATEGY" in
         1|2|3)
@@ -680,20 +683,17 @@ compute_version_flag() {
             major=${major:-0}
             minor=${minor:-0}
             patch=${patch:-0}
-            local new_version=""
             case "$VERSION_STRATEGY" in
-                1) new_version="$major.$minor.$((patch + 1))" ;;
-                2) new_version="$major.$((minor + 1)).0" ;;
-                3) new_version="$((major + 1)).0.0" ;;
+                1) RESOLVED_VERSION="$major.$minor.$((patch + 1))" ;;
+                2) RESOLVED_VERSION="$major.$((minor + 1)).0" ;;
+                3) RESOLVED_VERSION="$((major + 1)).0.0" ;;
             esac
-            echo "--version '$new_version'"
-            RESOLVED_VERSION="$new_version"
-            print_info "$family: $current_version → $new_version" >&2
+            print_info "Version: $current_version → $RESOLVED_VERSION"
             ;;
         4)
             if [ -n "$VERSION_CUSTOM" ]; then
-                echo "--version '$VERSION_CUSTOM'"
                 RESOLVED_VERSION="$VERSION_CUSTOM"
+                print_info "Version: $RESOLVED_VERSION (custom)"
             fi
             ;;
         *)
@@ -701,11 +701,26 @@ compute_version_flag() {
             # without an explicit --version the font falls back to FontForge's
             # default of 1.0 and "keep" would silently reset the release number.
             if [ -n "$current_version" ]; then
-                echo "--version '$current_version'"
                 RESOLVED_VERSION="$current_version"
             fi
             ;;
     esac
+}
+
+# Emit the --version flag for the metadata patcher from RESOLVED_VERSION.
+# Safe to call inside $(...) — does not assign globals.
+# Usage: compute_version_flag "quanta-strike-16"  → prints --version '…' or empty
+compute_version_flag() {
+    local family="$1"
+    if [ -z "$RESOLVED_VERSION" ]; then
+        return
+    fi
+    echo "--version '$RESOLVED_VERSION'"
+    local current_version
+    current_version=$(read_project_version)
+    if [ -n "$current_version" ] && [ "$current_version" != "$RESOLVED_VERSION" ]; then
+        print_info "$family: $current_version → $RESOLVED_VERSION" >&2
+    fi
 }
 
 # Global version strategy (set by get_metadata_options)
@@ -994,6 +1009,7 @@ main() {
 
     # ─── Step 2: Configure metadata options ───────────────────────────
     get_metadata_options
+    resolve_project_version
     echo
     print_info "Options:${DIM}$METADATA_OPTIONS${NC}"
 
