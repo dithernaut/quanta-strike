@@ -64,6 +64,31 @@ If you write your own CSS, keep them in the same rule:
 
 Never set the size on its own. Never set the family on its own.
 
+## Tailwind
+
+Import a theme preset to wire the Tailwind type scale. Every `text-*` step gets
+its strike paired in.
+
+```css
+@import "tailwindcss";
+@import "quanta-strike";
+@import "quanta-strike/theme/base-16.css";
+```
+
+`text-base` is strike 16 at `1rem`. For a denser body, use `base-12` instead:
+
+```css
+@import "quanta-strike/theme/base-12.css";
+
+html {
+  font-size: 187.5%; /* optional uniform zoom */
+}
+```
+
+Rem sizes are always `N / 16 × 1rem`. Picking a different base only changes which
+strike is `text-base` — it does not change the rem math, so the zoom knob stays
+honest. Every strike has a `theme/base-N.css`.
+
 ## Responsive text
 
 You cannot scale this font with `clamp()`. Change the size and you must change the
@@ -87,6 +112,7 @@ family too. So swap the whole class at a breakpoint:
 
 - `quanta-strike` loads every strike.
 - `quanta-strike/16.css` loads one strike.
+- `quanta-strike/theme/base-16.css` (and `base-12`, …) — Tailwind type scale.
 - `--font-strike-16` and `--font-strike-16-mono` custom properties for every size.
 - `.qs-16` and `.qs-16-mono` classes for every size.
 

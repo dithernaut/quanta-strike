@@ -150,34 +150,63 @@ scale never learns about it.
 
 ## Tailwind
 
-Import the fonts, set your sizes in `@theme`, then pair each step with its strike.
-Tailwind names steps semantically, so you decide which strike each step means.
+Import the fonts, then pick a theme preset. The preset sets the Tailwind type
+scale and pairs every `text-*` step with its strike so size and family stay
+together.
 
 ```css
 @import "tailwindcss";
 @import "quanta-strike";
+@import "quanta-strike/theme/base-16.css";
 
-@theme {
-  --text-base: 1rem;
-  --text-base--line-height: 1;
-  --text-2xl: 2rem;
-  --text-2xl--line-height: 1;
-}
-
-@layer base {
-  body {
-    font-family: var(--font-strike-16);
-    font-size: var(--text-base);
-  }
-  h1 {
-    font-family: var(--font-strike-32);
-    font-size: var(--text-2xl);
-  }
+/* optional uniform zoom — 100% keeps 1 source pixel = 1 CSS px */
+html {
+  font-size: 100%;
 }
 ```
 
-Keep the rem value and the strike in step. `--text-base: 1rem` means 16px at a 100%
-root, so it pairs with `--font-strike-16`. Change one and you must change the other.
+`base-16` is the default story: `text-base` is strike 16 at `1rem`. Want a denser
+body? Swap the preset:
+
+```css
+@import "quanta-strike/theme/base-12.css";
+```
+
+That makes `text-base` strike 12 at `0.75rem`, and reassigns the rest of the
+ladder around it. Rem sizes are always `N / 16 × 1rem` — choosing a different
+base only moves which strike is `text-base`, it does not change the rem math.
+That keeps the zoom knob honest: `html { font-size: 187.5%; }` scales every
+strike by the same factor.
+
+| preset    | `text-base`  | ladder                                                     |
+| --------- | ------------ | ---------------------------------------------------------- |
+| `base-12` | 12 @ 0.75rem | xs→6 … **base→12** … 4xl→32 (fits the stock Tailwind names) |
+| `base-16` | 16 @ 1rem    | 3xs→6 … **base→16** … 2xl→32 (adds `text-2xs` / `text-3xs`) |
+
+Every strike gets a `theme/base-N.css`. Neighbors fill outward from base (`sm` /
+`xs` / `2xs`… below, `lg` / `xl` / `2xl`… above). Leftover larger Tailwind steps
+(`text-5xl` and up) alias onto the biggest strike so they cannot ship unpaired.
+
+`.qs-mono` still works: it redefines the `--font-strike-N` vars, and the theme
+utilities read those vars.
+
+Hand-rolling the scale is still fine if a preset is not what you want — keep
+each rem value and its `--font-strike-N` in the same rule:
+
+```css
+@theme {
+  --text-base: 0.75rem;
+  --text-base--line-height: 1;
+}
+
+@layer utilities {
+  .text-base {
+    font-family: var(--font-strike-12);
+    font-size: var(--text-base);
+    line-height: 1;
+  }
+}
+```
 
 ## Responsive text
 
@@ -290,6 +319,8 @@ build/                            # generated. git-ignored
     quanta-strike.css             #   @font-face, the vars, the mono swap
     quanta-strike-utilities.css   #   the .qs-N classes. imports the above
     quanta-strike-16.css          #   one strike, fonts and classes together
+    theme/base-16.css             #   Tailwind type scale, base = strike 16
+    theme/base-12.css             #   same, base = strike 12 (etc. for every N)
     quanta-strike/                #   proportional web fonts
     quanta-strike-mono/           #   mono web fonts
 package/                          # the npm package. build-package.sh fills it
@@ -312,7 +343,7 @@ field by field.
 | `scripts/verify-pixel-grid.py`     | Guards the build. It checks that every strike shares the same pixel and every glyph sits on the 128 grid. The build stops if this fails.     |
 | `scripts/generate-nerd-fonts`      | Patches every `.ttf` in a folder with Nerd Font icons and writes them to a sibling `-nerd` folder.                                           |
 | `scripts/convert-woff2.py`         | Mirrors `build/ttf` to `build/woff2`. It skips `-nerd` unless you pass `--include-nerd`.                                                     |
-| `scripts/generate-css.py`          | Writes the drop-in CSS from the built WOFF2 files. It pairs each family with its size.                                                       |
+| `scripts/generate-css.py`          | Writes the drop-in CSS from the built WOFF2 files. It pairs each family with its size, and emits optional Tailwind `theme/base-N.css` presets. |
 | `scripts/rename-family.py`         | Sets a font's family and style naming and keeps the rest of the metadata.                                                                    |
 | `build-package.sh`                 | Assembles the npm package from a finished build.                                                                                             |
 | `scripts/default-metadata.json`    | Not a script. Holds the author, licence, and URL defaults the build applies instead of asking.                                               |
