@@ -33,6 +33,14 @@ One strike only:
 import "quanta-strike/16.css";
 ```
 
+Mono only, no proportional faces:
+
+```js
+import "quanta-strike/mono.css";
+// or one strike: import "quanta-strike/16-mono.css";
+// or locked classes: import "quanta-strike/utilities-mono.css";
+```
+
 Or the CDN:
 
 ```html
@@ -75,6 +83,20 @@ Want body at strike 16 and `1rem` at a 100% root? Use `base-16` instead:
 
 Every strike has a preset: `scale/base-6.css` through `scale/base-32.css`.
 
+For a mono type scale (code UI, terminal feel), import the mono core and a
+`base-N-mono` preset. Proportional faces stay out of the page:
+
+```css
+@import "tailwindcss";
+@import "quanta-strike/mono.css";
+@import "quanta-strike/scale/base-12-mono.css";
+```
+
+`base-N-mono` also works on top of the combined `quanta-strike` import — it
+binds `text-*` to `--font-strike-N-mono` either way. With `mono.css` alone,
+`--font-strike-N` already points at mono, so the plain `base-N` presets work
+too.
+
 ## The one rule
 
 Size and family travel together. `quanta-strike-16` is sharp at 16px. It blurs
@@ -108,6 +130,9 @@ put. The type scale never notices.
 Each strike also ships as its own family: proportional for UI, mono for code.
 Mono is not a style of the proportional family.
 
+Prefer the mono-only imports
+above when the whole page is mono.
+
 ## Responsive text
 
 `clamp()` will not work. Change the size and you must change the family. Swap
@@ -129,10 +154,12 @@ the whole pair at a breakpoint.
 
 ## What you get
 
-- `quanta-strike` loads every strike
-- `quanta-strike/utilities.css` gives the locked `.qs-N` classes
+- `quanta-strike` loads every strike (both variants)
+- `quanta-strike/mono.css` loads mono only
+- `quanta-strike/utilities.css` / `utilities-mono.css` give the locked `.qs-N` classes
 - `quanta-strike/scale/base-12.css` (and every other base) wires the type scale
-- `quanta-strike/16.css` loads one strike
+- `quanta-strike/scale/base-12-mono.css` same ladder, mono families
+- `quanta-strike/16.css` / `16-mono.css` load one strike
 - `--font-strike-16` / `--font-strike-16-mono` for hand-rolled CSS
 
 ## Licence
