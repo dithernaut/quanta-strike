@@ -57,7 +57,7 @@ page with the root font-size:
 ```css
 @import "tailwindcss";
 @import "quanta-strike";
-@import "quanta-strike/theme/base-12.css";
+@import "quanta-strike/scale/base-12.css";
 
 html {
   font-size: 200%; /* zoom. 100% = 1 source pixel per CSS px */
@@ -70,10 +70,10 @@ strikes. Rem sizes stay at `N / 16`, so the zoom scales every strike together.
 Want body at strike 16 and `1rem` at a 100% root? Use `base-16` instead:
 
 ```css
-@import "quanta-strike/theme/base-16.css";
+@import "quanta-strike/scale/base-16.css";
 ```
 
-Every strike has a preset: `theme/base-6.css` through `theme/base-32.css`.
+Every strike has a preset: `scale/base-6.css` through `scale/base-32.css`.
 
 ## The one rule
 
@@ -131,7 +131,7 @@ the whole pair at a breakpoint.
 
 - `quanta-strike` loads every strike
 - `quanta-strike/utilities.css` gives the locked `.qs-N` classes
-- `quanta-strike/theme/base-12.css` (and every other base) wires the type scale
+- `quanta-strike/scale/base-12.css` (and every other base) wires the type scale
 - `quanta-strike/16.css` loads one strike
 - `--font-strike-16` / `--font-strike-16-mono` for hand-rolled CSS
 

@@ -1,6 +1,7 @@
 # Everything here comes from ../build-package.sh. Only package.json and
 # README.md are source.
 fonts/
+scale/
 theme/
 *.css
 OFL.txt

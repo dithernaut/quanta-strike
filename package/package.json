@@ -30,7 +30,7 @@
     ".": "./quanta-strike.css",
     "./quanta-strike.css": "./quanta-strike.css",
     "./utilities.css": "./utilities.css",
-    "./theme/*": "./theme/*",
+    "./scale/*": "./scale/*",
     "./6.css": "./6.css",
     "./10.css": "./10.css",
     "./12.css": "./12.css",
@@ -45,7 +45,7 @@
   },
   "files": [
     "*.css",
-    "theme/",
+    "scale/",
     "fonts/",
     "OFL.txt",
     "README.md"

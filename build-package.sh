@@ -28,7 +28,7 @@ if [ ! -d "$WOFF2_DIR" ]; then
 fi
 
 # Wipe the generated parts. Everything else in package/ is source.
-rm -rf "$FONTS_DIR" "$PKG_DIR/theme"
+rm -rf "$FONTS_DIR" "$PKG_DIR/theme" "$PKG_DIR/scale"
 rm -f "$PKG_DIR"/*.css
 mkdir -p "$FONTS_DIR"
 
