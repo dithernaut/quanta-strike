@@ -39,8 +39,9 @@ abcdefghijklmnopqrstuvwxyz
 0123456789
 ⁰¹²³⁴⁵⁶⁷⁸⁹
 ₀₁₂₃₄₅₆₇₈₉
-⓿①②③④⑤⑥⑦⑧⑨
 ```
+
+Each strike also supports [old style figures](https://en.wikipedia.org/wiki/Text_figures), and [small caps](https://en.wikipedia.org/wiki/Small_caps).
 
 ## What this repo is
 
