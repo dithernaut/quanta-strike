@@ -97,6 +97,17 @@ binds `text-*` to `--font-strike-N-mono` either way. With `mono.css` alone,
 `--font-strike-N` already points at mono, so the plain `base-N` presets work
 too.
 
+## Spacing grid
+
+Opt-in. `--spacing` becomes one source pixel, so `p-*`, `m-*`, `gap-*` snap to
+the strike grid and zoom with the page. Pairs with any base.
+
+```css
+@import "quanta-strike/grid.css";
+```
+
+`--qs-px` is that pixel. Reuse it anywhere: `border-width: var(--qs-px)`.
+
 ## The one rule
 
 Size and family travel together. `quanta-strike-16` is sharp at 16px. It blurs
@@ -159,6 +170,7 @@ the whole pair at a breakpoint.
 - `quanta-strike/utilities.css` / `utilities-mono.css` give the locked `.qs-N` classes
 - `quanta-strike/scale/base-12.css` (and every other base) wires the type scale
 - `quanta-strike/scale/base-12-mono.css` same ladder, mono families
+- `quanta-strike/grid.css` snaps `--spacing` to the pixel grid (and exposes `--qs-px`)
 - `quanta-strike/16.css` / `16-mono.css` load one strike
 - `--font-strike-16` / `--font-strike-16-mono` for hand-rolled CSS
 
