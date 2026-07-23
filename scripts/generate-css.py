@@ -333,6 +333,47 @@ def render_scale(base, strikes, *, mono=False):
     return "".join(lines)
 
 
+# Tailwind's border-width utilities, suffix → the properties they set. The bare
+# class (no number) is 1px in stock Tailwind, i.e. one source pixel here.
+BORDER_SIDES = (
+    ("", ("border-width",)),
+    ("-x", ("border-left-width", "border-right-width")),
+    ("-y", ("border-top-width", "border-bottom-width")),
+    ("-t", ("border-top-width",)),
+    ("-r", ("border-right-width",)),
+    ("-b", ("border-bottom-width",)),
+    ("-l", ("border-left-width",)),
+    ("-s", ("border-inline-start-width",)),
+    ("-e", ("border-inline-end-width",)),
+)
+
+# Tailwind's documented widths. Anything else (border-3, border-5) stays literal
+# px — covering every integer would bloat the sheet for no one.
+BORDER_WIDTHS = (1, 2, 4, 8)
+
+
+def grid_length(n):
+    """N source pixels as a CSS length. 1 needs no calc()."""
+    return "var(--qs-px)" if n == 1 else f"calc(var(--qs-px) * {n})"
+
+
+def border_grid_rules():
+    """Every border-width utility — all sides, axes and logical edges.
+
+    Stock Tailwind writes these as literal px, so they ignore the zoom that the
+    strikes and --spacing follow.
+    """
+    lines = []
+    for suffix, props in BORDER_SIDES:
+        # Bare class first (.border, .border-l), then the numbered steps.
+        for name, n in [(f"border{suffix}", 1)] + [
+            (f"border{suffix}-{w}", w) for w in BORDER_WIDTHS
+        ]:
+            decls = " ".join(f"{p}: {grid_length(n)};" for p in props)
+            lines.append(f"  .{name} {{ {decls} }}\n")
+    return "".join(lines)
+
+
 def render_grid():
     """Optional Tailwind pixel grid. Base-independent, no strike data needed.
 
@@ -376,13 +417,12 @@ def render_grid():
         "  --spacing: calc(var(--qs-px) * 4);\n"
         "}\n"
         "\n/* px-literal widths: the only part of stock Tailwind that leaves the grid\n"
-        "   when the page zooms. One source pixel is the thinnest honest line. */\n"
+        "   when the page zooms. One source pixel is the thinnest honest line.\n"
+        "   N means N source pixels; other numbers stay literal px — use\n"
+        "   border-[length:calc(var(--qs-px)*3)] or var(--qs-px) by hand. */\n"
         "@layer utilities {\n"
-        "  .border   { border-width: var(--qs-px); }\n"
-        "  .border-2 { border-width: calc(var(--qs-px) * 2); }\n"
-        "  .border-4 { border-width: calc(var(--qs-px) * 4); }\n"
-        "  .border-8 { border-width: calc(var(--qs-px) * 8); }\n"
-        "  .outline  { outline-width: var(--qs-px); }\n"
+        + border_grid_rules()
+        + "  .outline { outline-width: var(--qs-px); }\n"
         "}\n"
     )
 
