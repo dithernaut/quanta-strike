@@ -60,8 +60,18 @@ for f in "$PKG_DIR"/quanta-strike-[0-9]*.css; do
     mv "$f" "$PKG_DIR/$size.css"
 done
 
-# Same idea: "quanta-strike/utilities.css".
+# Same idea: "quanta-strike/utilities.css" / "quanta-strike/mono.css".
+# Per-strike files (16.css, 16-mono.css) are renamed above; the all-strikes
+# mono core and both utilities files need their publish names here.
 mv "$PKG_DIR/quanta-strike-utilities.css" "$PKG_DIR/utilities.css"
+mv "$PKG_DIR/quanta-strike-utilities-mono.css" "$PKG_DIR/utilities-mono.css"
+mv "$PKG_DIR/quanta-strike-mono.css" "$PKG_DIR/mono.css"
+# utilities-mono was generated against the pre-rename core name.
+python3 -c "
+from pathlib import Path
+p = Path('$PKG_DIR/utilities-mono.css')
+p.write_text(p.read_text().replace('./quanta-strike-mono.css', './mono.css'))
+"
 
 cp "$LICENSE_FILE" "$PKG_DIR/"
 

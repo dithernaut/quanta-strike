@@ -14,15 +14,22 @@ It reads a built WOFF2 tree (the one scripts/convert-woff2.py produces):
 
 ...derives the strike size N from each filename, and writes:
 
-    quanta-strike.css       every strike, both variants
-    quanta-strike-16.css    one strike, both variants (for per-strike imports)
-    scale/base-N.css        optional Tailwind type-scale presets (one per strike)
+    quanta-strike.css            every strike, both variants
+    quanta-strike-mono.css       every strike, mono only (no proportional faces)
+    quanta-strike-16.css         one strike, both variants
+    quanta-strike-16-mono.css    one strike, mono only
+    scale/base-N.css             Tailwind type-scale (proportional via --font-strike-N)
+    scale/base-N-mono.css        same ladder, mono via --font-strike-N-mono
 
 Each file holds @font-face blocks, --font-strike-N custom properties, and the
 paired utility classes:
 
     .qs-16      { font-family: "quanta-strike-16";      font-size: 16px; }
     .qs-16-mono { font-family: "quanta-strike-16-mono"; font-size: 16px; }
+
+The mono-only entry points exist so a code/TUI project can import mono without
+pulling proportional faces. In those files --font-strike-N also points at mono,
+so existing .qs-N / scale consumers keep working.
 
 line-height is 1 so a line box is a whole number of pixels, which keeps leading on
 the grid too. Override it per project if you want more air.
@@ -120,17 +127,20 @@ def face(family, url):
     )
 
 
-def render_core(strikes, sizes, url_prefix, flat):
-    """The unopinionated layer: @font-face, the vars, and the mono swap.
+def render_core(strikes, sizes, url_prefix, flat, *, mono_only=False):
+    """The unopinionated layer: @font-face, the vars, and (when both) the mono swap.
 
     No utility classes here. A project with its own type scale wants exactly this
     and nothing more.
+
+    mono_only=True emits only mono faces. --font-strike-N points at mono too, so
+    consumers that already bind on the un-suffixed var get mono without rewriting.
     """
     out = [HEADER]
 
     for size in sizes:
         files = strikes[size]
-        if "prop" in files:
+        if not mono_only and "prop" in files:
             out.append(face(f"quanta-strike-{size}", url_for(files["prop"], url_prefix, flat)))
         if "mono" in files:
             out.append(face(f"quanta-strike-{size}-mono", url_for(files["mono"], url_prefix, flat)))
@@ -139,33 +149,43 @@ def render_core(strikes, sizes, url_prefix, flat):
     out.append("\n:root {\n")
     for size in sizes:
         files = strikes[size]
-        if "prop" in files:
-            out.append(f'  --font-strike-{size}: "quanta-strike-{size}";\n')
-        if "mono" in files:
-            out.append(f'  --font-strike-{size}-mono: "quanta-strike-{size}-mono";\n')
+        if mono_only:
+            if "mono" in files:
+                # Primary var → mono so .qs-N / scale/base-N.css keep working.
+                out.append(f'  --font-strike-{size}: "quanta-strike-{size}-mono";\n')
+                out.append(f'  --font-strike-{size}-mono: "quanta-strike-{size}-mono";\n')
+        else:
+            if "prop" in files:
+                out.append(f'  --font-strike-{size}: "quanta-strike-{size}";\n')
+            if "mono" in files:
+                out.append(f'  --font-strike-{size}-mono: "quanta-strike-{size}-mono";\n')
     out.append("}\n")
 
-    # Redefining the vars on a subtree switches every strike under it to mono
-    # without touching a single font-size. Sizes stay put, the design swaps.
-    out.append(
-        "\n/* Switch a subtree to the mono variant. Sizes stay exactly as they are. */\n"
-        ".qs-mono {\n"
-    )
-    for size in sizes:
-        if "mono" in strikes[size]:
-            out.append(f'  --font-strike-{size}: "quanta-strike-{size}-mono";\n')
-    out.append("}\n")
+    # Combined core only: redefine the vars on a subtree to swap design, not size.
+    # Mono-only core is already mono — the class would be a no-op.
+    if not mono_only:
+        out.append(
+            "\n/* Switch a subtree to the mono variant. Sizes stay exactly as they are. */\n"
+            ".qs-mono {\n"
+        )
+        for size in sizes:
+            if "mono" in strikes[size]:
+                out.append(f'  --font-strike-{size}: "quanta-strike-{size}-mono";\n')
+        out.append("}\n")
 
     return "".join(out)
 
 
-def render_utilities(strikes, sizes, core_import):
+def render_utilities(strikes, sizes, core_import, *, mono_only=False):
     """The opinionated layer: one class per strike, family and size bound together.
 
     Sizes are in px on purpose. This is the locked mode, so a strike renders at
     exactly 1 CSS px per source pixel no matter what the root font-size does.
     Projects that want the uniform zoom knob use the vars and their own rem scale
     instead.
+
+    mono_only=True only emits classes for strikes that have a mono face. .qs-N
+    still works because the mono core points --font-strike-N at mono.
     """
     out = []
     if core_import:
@@ -174,16 +194,28 @@ def render_utilities(strikes, sizes, core_import):
     out.append("\n/* Family and size together. Never split them. */\n")
     for size in sizes:
         files = strikes[size]
-        if "prop" in files:
+        if mono_only:
+            if "mono" not in files:
+                continue
             out.append(
                 f".qs-{size} {{ font-family: var(--font-strike-{size}); "
                 f"font-size: {size}px; line-height: 1; }}\n"
             )
-        if "mono" in files:
             out.append(
                 f".qs-{size}-mono {{ font-family: var(--font-strike-{size}-mono); "
                 f"font-size: {size}px; line-height: 1; }}\n"
             )
+        else:
+            if "prop" in files:
+                out.append(
+                    f".qs-{size} {{ font-family: var(--font-strike-{size}); "
+                    f"font-size: {size}px; line-height: 1; }}\n"
+                )
+            if "mono" in files:
+                out.append(
+                    f".qs-{size}-mono {{ font-family: var(--font-strike-{size}-mono); "
+                    f"font-size: {size}px; line-height: 1; }}\n"
+                )
     return "".join(out)
 
 
@@ -229,26 +261,36 @@ def scale_map(base, strikes):
     return [(step, mapping[step]) for step in SCALE_STEP_ORDER if step in mapping]
 
 
-def render_scale(base, strikes):
+def render_scale(base, strikes, *, mono=False):
     """Optional Tailwind type-scale preset: @theme sizes + paired text-* utilities.
 
-    Does not import the core CSS — the consumer loads quanta-strike first so the
-    --font-strike-N vars exist. Does not touch html font-size (that's the zoom
-    knob). body gets the base pair so unclassed copy stays sharp.
+    Does not import the core CSS — the consumer loads quanta-strike (or
+    quanta-strike/mono.css) first so the --font-strike-N vars exist. Does not
+    touch html font-size (that's the zoom knob). body gets the base pair so
+    unclassed copy stays sharp.
+
+    mono=True binds text-* / body to --font-strike-N-mono, so the scale is mono
+    even when the combined core (both variants) is loaded.
     """
     scale = scale_map(base, strikes)
+    suffix = "-mono" if mono else ""
+    core_import = "quanta-strike/mono.css" if mono else "quanta-strike"
+    variant_note = " (mono)" if mono else ""
+
+    def font_var(n):
+        return f"--font-strike-{n}-mono" if mono else f"--font-strike-{n}"
 
     lines = [
         "/* quanta-strike — generated by scripts/generate-css.py. Do not edit by hand.\n"
         " *\n"
-        f" * Type scale with strike {base} as text-base.\n"
+        f" * Type scale with strike {base} as text-base{variant_note}.\n"
         " * Rem sizes are always N/16, so html { font-size: 100% } keeps\n"
         " * 1 source pixel = 1 CSS px. Zoom with html { font-size: …% };\n"
         " * do not change the rem values.\n"
         " *\n"
         " *   @import \"tailwindcss\";\n"
-        " *   @import \"quanta-strike\";\n"
-        f" *   @import \"quanta-strike/scale/base-{base}.css\";\n"
+        f" *   @import \"{core_import}\";\n"
+        f" *   @import \"quanta-strike/scale/base-{base}{suffix}.css\";\n"
         " *\n"
         " * https://github.com/dithernaut/quanta-strike\n"
         " */\n"
@@ -271,7 +313,7 @@ def render_scale(base, strikes):
         selectors = ",\n".join(f"  .text-{step}" for step in steps)
         lines.append(
             f"{selectors} {{\n"
-            f"    font-family: var(--font-strike-{strike});\n"
+            f"    font-family: var({font_var(strike)});\n"
             f"    font-size: var(--text-{steps[0]});\n"
             f"    line-height: 1;\n"
             f"  }}\n"
@@ -281,7 +323,7 @@ def render_scale(base, strikes):
     lines.append(
         "\n@layer base {\n"
         "  body {\n"
-        f"    font-family: var(--font-strike-{base});\n"
+        f"    font-family: var({font_var(base)});\n"
         "    font-size: var(--text-base);\n"
         "    line-height: 1;\n"
         "  }\n"
@@ -312,15 +354,32 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
 
     sizes = list(strikes)
+    mono_sizes = [s for s in sizes if "mono" in strikes[s]]
     written = []
 
     combined = out_dir / "quanta-strike.css"
     combined.write_text(render_core(strikes, sizes, args.url_prefix, args.flat))
     written.append(combined)
 
+    if mono_sizes:
+        mono_core = out_dir / "quanta-strike-mono.css"
+        mono_core.write_text(
+            render_core(strikes, mono_sizes, args.url_prefix, args.flat, mono_only=True)
+        )
+        written.append(mono_core)
+
     utilities = out_dir / "quanta-strike-utilities.css"
     utilities.write_text(render_utilities(strikes, sizes, "./quanta-strike.css"))
     written.append(utilities)
+
+    if mono_sizes:
+        utilities_mono = out_dir / "quanta-strike-utilities-mono.css"
+        utilities_mono.write_text(
+            render_utilities(
+                strikes, mono_sizes, "./quanta-strike-mono.css", mono_only=True
+            )
+        )
+        written.append(utilities_mono)
 
     # A per-strike file is the "I only need one size" path, so it carries its own
     # utility classes. No second import to remember.
@@ -332,7 +391,15 @@ def main():
         )
         written.append(path)
 
-    # One type-scale preset per strike. Opt-in; core CSS stays unopinionated.
+    for size in mono_sizes:
+        path = out_dir / f"quanta-strike-{size}-mono.css"
+        path.write_text(
+            render_core(strikes, [size], args.url_prefix, args.flat, mono_only=True)
+            + render_utilities(strikes, [size], None, mono_only=True)
+        )
+        written.append(path)
+
+    # One type-scale preset per strike (prop + mono). Opt-in; core stays unopinionated.
     scale_dir = out_dir / "scale"
     if scale_dir.exists():
         for old in scale_dir.glob("base-*.css"):
@@ -341,6 +408,10 @@ def main():
     for size in sizes:
         path = scale_dir / f"base-{size}.css"
         path.write_text(render_scale(size, sizes))
+        written.append(path)
+    for size in mono_sizes:
+        path = scale_dir / f"base-{size}-mono.css"
+        path.write_text(render_scale(size, sizes, mono=True))
         written.append(path)
 
     variants = sum(len(v) for v in strikes.values())
