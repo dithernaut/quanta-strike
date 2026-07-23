@@ -43,6 +43,8 @@ abcdefghijklmnopqrstuvwxyz
 
 Each strike also supports [old style figures](https://en.wikipedia.org/wiki/Text_figures), and [small caps](https://en.wikipedia.org/wiki/Small_caps).
 
+`quanta-strike-12` currently covers many more glyphs than the other strikes (1,100+).
+
 ## What this repo is
 
 Source art lives in `src/` as PNG + JSON pixel sheets. The build compiles each
