@@ -174,7 +174,7 @@ Every release:
 - [ ] `git add VERSION package/package.json && git commit -m "Release $(cat VERSION)"`
 - [ ] `git tag v$(cat VERSION) && git push && git push --tags`
 - [ ] `rm -rf build/tmp && find build -name .DS_Store -delete` (optional, shouldn't be there anymore)
-- [ ] `zip -r quanta-strike-$(cat VERSION).zip build`, attach to the GitHub release
+- [ ] `mv build quanta-strike && zip -r quanta-strike-$(cat VERSION).zip quanta-strike && mv quanta-strike build`, attach to the GitHub release
 - [ ] `cd package && npm pack --dry-run`, read the list
 - [ ] `npm publish`
 - [ ] `npm view quanta-strike version` shows the new number

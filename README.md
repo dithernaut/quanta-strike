@@ -6,11 +6,44 @@ A modern pixel typeface. I draw each size by hand. Non-integer scaling ruins
 pixels, so this repo ships a family of _strikes_. Each strike is its own design
 for one target size.
 
+💾 [**Download .ttf and .woff2**](https://github.com/dithernaut/quanta-strike/releases/latest/download/quanta-strike.zip)
+
 📖 **Read the story:** [dithernaut.com/posts/pixel-scaling](https://dithernaut.com/posts/pixel-scaling)
 
 ![All the available strikes of `quanta-strike`](docs/quanta-strikes.avif)
 
 ![The "Quick brown fox" pangram in all the strikes](docs/quanta-strikes-panagram.avif)
+
+## Glyphs
+
+Each strike supports at least the following glyphs:
+
+```
+ABCDEFGHIJKLMNOPQRSTUVWXYZ
+abcdefghijklmnopqrstuvwxyz
+ᴀʙᴄᴅᴇꜰɢʜɪᴊᴋʟᴍɴᴏᴘꞯʀꜱᴛᴜᴠᴡ✗ʏᴢ
+
+ ,.:;?¿!¡|()[]{}+-–—*÷_@'%
+ʻʼ“ˮ#$€£^&°〈〉~/\`=×"‘’‚”„<
+>≪≫©®§…•ªº¥¢≠±≈∓∆∏∑∫Ππ¤→↑←
+↓‰∐∇√∞≂≃≤≥≡≢≣⪡⪢↔↕‛‟‼‽⌘™¦†
+‡№⌥⁊‐✓µ♩♪♫♬―ƒ฿℮₿₣₴₺ℓ₽₹₪₸₮⁒
+Ω█▓▒░
+
+áâàäåãǎāæçćčċđéêèëẽēėęíîìïı
+ǐĩįñńņňóôòöõøōœšşśßúûùüǔũūű
+ůýÿŷžźżÁÂÀÄÅÃǍĀÆÇĆČĊĐÉÊÈËẼĒ
+ĖĘÍÎÌÏǏĨĮÑŃŅŇÓÔÒÖÕØŌŒŠŞŚẞÚÛ
+ÙÜǓŨŪŰŮÝŸŶŽŹŻ
+
+0123456789
+⁰¹²³⁴⁵⁶⁷⁸⁹
+₀₁₂₃₄₅₆₇₈₉
+```
+
+Each strike also supports [old style figures](https://en.wikipedia.org/wiki/Text_figures), and [small caps](https://en.wikipedia.org/wiki/Small_caps).
+
+`quanta-strike-12` currently covers many more glyphs than the other strikes (1,100+).
 
 ## What this repo is
 
@@ -26,7 +59,13 @@ Every strike builds twice from the same art:
 Size and family travel together. `quanta-strike-16` is sharp at 16px. It blurs
 everywhere else. The CSS the build emits binds them on purpose.
 
-## Use the font
+## Use the typeface
+
+### On your device
+
+To use the typeface on your device simply [latest zip](https://github.com/dithernaut/quanta-strike/releases/latest/download/quanta-strike.zip), and install the fonts to your system
+
+### On your website
 
 Install the npm package and follow its README:
 
