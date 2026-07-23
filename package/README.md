@@ -99,9 +99,7 @@ too.
 
 ## Pixel grid
 
-Opt-in. Spacing keeps Tailwind's sizes: `0.25rem` is already 4 source pixels, so
-`p-4` is still 16px. What it fixes is `border` and `outline` — those stay
-literal px, so a zoomed page draws them half a pixel thick. Pairs with any base.
+Opt-in. Quanta-strike sets a pixel grid on the page; a stock `border` (1px) can fall off it. E.g. at `font-size: 200%` that line is half a source pixel. Import `grid.css` to snap `border` and `outline` widths to the grid.
 
 ```css
 @import "quanta-strike/grid.css";
