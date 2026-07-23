@@ -97,16 +97,17 @@ binds `text-*` to `--font-strike-N-mono` either way. With `mono.css` alone,
 `--font-strike-N` already points at mono, so the plain `base-N` presets work
 too.
 
-## Spacing grid
+## Pixel grid
 
-Opt-in. `--spacing` becomes one source pixel, so `p-*`, `m-*`, `gap-*` snap to
-the strike grid and zoom with the page. Pairs with any base.
+Opt-in. Spacing keeps Tailwind's sizes: `0.25rem` is already 4 source pixels, so
+`p-4` is still 16px. What it fixes is `border` and `outline` — those stay
+literal px, so a zoomed page draws them half a pixel thick. Pairs with any base.
 
 ```css
 @import "quanta-strike/grid.css";
 ```
 
-`--qs-px` is that pixel. Reuse it anywhere: `border-width: var(--qs-px)`.
+`--qs-px` is one source pixel. Reuse it anywhere: `border-width: var(--qs-px)`.
 
 ## The one rule
 
@@ -170,7 +171,7 @@ the whole pair at a breakpoint.
 - `quanta-strike/utilities.css` / `utilities-mono.css` give the locked `.qs-N` classes
 - `quanta-strike/scale/base-12.css` (and every other base) wires the type scale
 - `quanta-strike/scale/base-12-mono.css` same ladder, mono families
-- `quanta-strike/grid.css` snaps `--spacing` to the pixel grid (and exposes `--qs-px`)
+- `quanta-strike/grid.css` puts border/outline widths on the pixel grid (and exposes `--qs-px`)
 - `quanta-strike/16.css` / `16-mono.css` load one strike
 - `--font-strike-16` / `--font-strike-16-mono` for hand-rolled CSS
 
