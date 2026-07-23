@@ -6,6 +6,8 @@ A modern pixel typeface. I draw each size by hand. Non-integer scaling ruins
 pixels, so this repo ships a family of _strikes_. Each strike is its own design
 for one target size.
 
+💾 [**Download .ttf and .woff2**](https://github.com/dithernaut/quanta-strike/releases/latest/download/quanta-strike.zip)
+
 📖 **Read the story:** [dithernaut.com/posts/pixel-scaling](https://dithernaut.com/posts/pixel-scaling)
 
 ![All the available strikes of `quanta-strike`](docs/quanta-strikes.avif)
@@ -26,7 +28,13 @@ Every strike builds twice from the same art:
 Size and family travel together. `quanta-strike-16` is sharp at 16px. It blurs
 everywhere else. The CSS the build emits binds them on purpose.
 
-## Use the font
+## Use the typeface
+
+### On your device
+
+To use the typeface on your device simply [latest zip](https://github.com/dithernaut/quanta-strike/releases/latest/download/quanta-strike.zip), and install the fonts to your system
+
+### On your website
 
 Install the npm package and follow its README:
 
