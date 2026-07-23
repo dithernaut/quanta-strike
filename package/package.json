@@ -32,6 +32,7 @@
     "./mono.css": "./mono.css",
     "./utilities.css": "./utilities.css",
     "./utilities-mono.css": "./utilities-mono.css",
+    "./grid.css": "./grid.css",
     "./scale/*": "./scale/*",
     "./6.css": "./6.css",
     "./6-mono.css": "./6-mono.css",
