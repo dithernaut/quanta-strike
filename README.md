@@ -14,6 +14,34 @@ for one target size.
 
 ![The "Quick brown fox" pangram in all the strikes](docs/quanta-strikes-panagram.avif)
 
+## Glyphs
+
+Each strike supports at least the following glyphs:
+
+```
+ABCDEFGHIJKLMNOPQRSTUVWXYZ
+abcdefghijklmnopqrstuvwxyz
+ᴀʙᴄᴅᴇꜰɢʜɪᴊᴋʟᴍɴᴏᴘꞯʀꜱᴛᴜᴠᴡ✗ʏᴢ
+
+ ,.:;?¿!¡|()[]{}+-–—*÷_@'%
+ʻʼ“ˮ#$€£^&°〈〉~/\`=×"‘’‚”„<
+>≪≫©®§…•ªº¥¢≠±≈∓∆∏∑∫Ππ¤→↑←
+↓‰∐∇√∞≂≃≤≥≡≢≣⪡⪢↔↕‛‟‼‽⌘™¦†
+‡№⌥⁊‐✓µ♩♪♫♬―ƒ฿℮₿₣₴₺ℓ₽₹₪₸₮⁒
+Ω█▓▒░
+
+áâàäåãǎāæçćčċđéêèëẽēėęíîìïı
+ǐĩįñńņňóôòöõøōœšşśßúûùüǔũūű
+ůýÿŷžźżÁÂÀÄÅÃǍĀÆÇĆČĊĐÉÊÈËẼĒ
+ĖĘÍÎÌÏǏĨĮÑŃŅŇÓÔÒÖÕØŌŒŠŞŚẞÚÛ
+ÙÜǓŨŪŰŮÝŸŶŽŹŻ
+
+0123456789
+⁰¹²³⁴⁵⁶⁷⁸⁹
+₀₁₂₃₄₅₆₇₈₉
+⓿①②③④⑤⑥⑦⑧⑨
+```
+
 ## What this repo is
 
 Source art lives in `src/` as PNG + JSON pixel sheets. The build compiles each
