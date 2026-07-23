@@ -1,6 +1,6 @@
 {
   "name": "quanta-strike",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "A pixel typeface with one font per size. Every strike is drawn by hand and stays sharp at the size it was drawn for.",
   "keywords": [
     "font",
