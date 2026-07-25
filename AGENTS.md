@@ -195,14 +195,18 @@ mono → `build/ttf/quanta-strike-mono/`, `build/ttf/quanta-strike-mono-nerd/`,
 `./build.sh --defaults` (aliases `-y`, `--yes`, `--non-interactive`) answers every
 prompt with its DEFAULT and builds all strikes — both variants each — for CI /
 repeatable releases. Not called `--yes` because the defaults aren't all yes: version =
-keep, Nerd Fonts = no (opt-in). Prompts still print with the assumed answer so the log
-stays auditable. Any new prompt must honour `$NON_INTERACTIVE` or it will hang a
-non-interactive build.
+keep, Nerd Fonts = no (opt-in), console PSF = no (opt-in). Prompts still print with the
+assumed answer so the log stays auditable. Any new prompt must honour `$NON_INTERACTIVE`
+or it will hang a non-interactive build.
 
 Two CLI flags pin the choices that would otherwise be prompted (both honoured in
 `--defaults` runs too):
 - **`--nerd-fonts`** (alias `--nerd`) — opt IN to Nerd Font generation (mono variant
   only, the slow step). Off unless given, so a plain `--defaults` build skips it.
+- **`--psf`** (alias `--psf-fonts`) — opt IN to console PSF fonts (Linux framebuffer /
+  Raspberry Pi Lite). Off unless given; also implied by `--charset` / `--psf-scale`.
+  Not part of the main release zip — local/clone builds, or an optional separate
+  `…-console-psf.zip` release asset. `--no-psf` forces skip.
 - **`--spacing V`** — FORCE the proportional inter-glyph gap for every strike: a pixel
   count, or `auto` (scale with strike size: 1px N<11, 2px 11–18, 3px N>18). When omitted,
   each strike falls back to its own JSON `spacing` key, then `auto` — so `--spacing`
@@ -210,8 +214,8 @@ Two CLI flags pin the choices that would otherwise be prompted (both honoured in
   scripts/default-metadata.json (same force-all effect). Mono is unaffected (its packing is
   `glyph-spacing`).
 So `./build.sh -y --spacing 2 --nerd-fonts` = non-interactive, fixed 2px proportional gap
-everywhere, with the mono Nerd variants; plain `./build.sh -y` lets each strike's JSON (or
-auto) decide.
+everywhere, with the mono Nerd variants and no PSF; plain `./build.sh -y` lets each
+strike's JSON (or auto) decide and skips Nerd + PSF.
 
 ## Sizing choice in build.sh
 Always anchors pixel-perfect first, then prompts `Scale factor on top [default 1]`.

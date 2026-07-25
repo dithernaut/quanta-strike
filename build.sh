@@ -73,6 +73,19 @@ NON_INTERACTIVE=false
 # the prompt defaults to no, so a plain --defaults build skips them.
 NERD_FORCED=false
 
+# Console PSF fonts (Linux/Raspberry Pi fbcon): OPT-IN, like Nerd Fonts. Not part
+# of the main release zip — clones can build locally via --psf / the prompt.
+# Default allowlist is console-charset.json (tracked); local variants like
+# console-charset-hr.json are gitignored. --no-psf forces skip.
+DEFAULT_CHARSET_FILE="./console-charset.json"
+PSF_DIR="$BUILD_DIR/psf/quanta-strike"
+PSF_SKIP=false
+PSF_FORCED=false        # --psf / --psf-fonts
+PSF_CHARSET=""          # resolved path; empty until choose_psf_charset runs
+PSF_CHARSET_SET=false   # true when --charset already pinned it
+PSF_SCALE=1             # integer nearest-neighbor upscale for PSF only
+PSF_SCALE_SET=false     # true when --psf-scale already pinned it
+
 # The staging dir ($BUILD_DIR/tmp) holds png-to-ttf's intermediate TTFs that the
 # metadata patcher reads; nothing needs it once the build finishes, so it's
 # removed at the end. --keep-tmp leaves it in place for inspecting a bad build.
@@ -443,7 +456,7 @@ run_copy_license() {
         # so -e is the reliable test — `ls a/*.ttf a/*.otf` would report failure
         # whenever ANY one of the patterns matches nothing.)
         has=0
-        for f in "$dir"/*.ttf "$dir"/*.otf "$dir"/*.woff2; do
+        for f in "$dir"/*.ttf "$dir"/*.otf "$dir"/*.woff2 "$dir"/*.psfu "$dir"/*.psfu.gz "$dir"/*.psf "$dir"/*.psf.gz; do
             if [ -e "$f" ]; then has=1; break; fi
         done
         if [ $has -eq 0 ]; then continue; fi
@@ -458,6 +471,250 @@ run_copy_license() {
     else
         print_success "Licence copied into $copied folder(s)"
     fi
+    return 0
+}
+
+# Output-name suffix for a charset file:
+#   console-charset.json     → (none)
+#   console-charset-hr.json  → hr
+#   custom.json              → custom  (avoids clobbering the default output)
+charset_suffix_of() {
+    local base
+    base="$(basename "$1" .json)"
+    if [ "$base" = "console-charset" ]; then
+        echo ""
+    elif [[ "$base" == console-charset-* ]]; then
+        echo "${base#console-charset-}"
+    else
+        echo "$base"
+    fi
+}
+
+# List charset choices at the repo root: default first, then console-charset-*.json.
+# Echoes absolute-or-relative paths, one per line.
+list_charset_files() {
+    if [ -f "$DEFAULT_CHARSET_FILE" ]; then
+        echo "$DEFAULT_CHARSET_FILE"
+    fi
+    local f
+    for f in ./console-charset-*.json; do
+        [ -f "$f" ] || continue
+        echo "$f"
+    done
+}
+
+# Pick which charset the PSF step will use. Console PSF is OPT-IN (default no),
+# same idea as Nerd Fonts — not shipped in the main release. Honours:
+#   --no-psf          → skip
+#   --psf / --charset / --psf-scale → force on (skip the yes/no)
+#   otherwise prompt (default n); --defaults takes that default and skips.
+# Sets PSF_CHARSET or PSF_SKIP. Asks PSF scale afterwards when building.
+choose_psf_charset() {
+    if [ "$PSF_SKIP" = true ]; then
+        print_info "Console PSF: skipped (--no-psf)."
+        return 0
+    fi
+
+    # --charset / --psf-scale imply the user wants PSF even without --psf.
+    local forced=false
+    if [ "$PSF_FORCED" = true ] || [ "$PSF_CHARSET_SET" = true ] || [ "$PSF_SCALE_SET" = true ]; then
+        forced=true
+    fi
+
+    if [ "$forced" = true ] && [ "$PSF_CHARSET_SET" = true ]; then
+        if [ ! -f "$PSF_CHARSET" ]; then
+            print_error "Charset not found: $PSF_CHARSET"
+            return 1
+        fi
+        print_info "Console PSF charset: ${BOLD}$PSF_CHARSET${NC} (--charset)."
+        choose_psf_scale
+        return $?
+    fi
+
+    echo
+    print_header "Console PSF fonts"
+    print_info "≤256-glyph .psfu.gz for Linux/Raspberry Pi consoles (setfont)."
+    print_info "${DIM}Opt-in — not included in the main release zip. Local/clone builds only.${NC}"
+
+    if [ "$forced" != true ]; then
+        if ! ask_yes_no "Build console PSF fonts?" "n"; then
+            PSF_SKIP=true
+            return 0
+        fi
+    else
+        print_info "Console PSF: enabled via --psf / --charset / --psf-scale."
+    fi
+
+    local choices=()
+    local line
+    while IFS= read -r line; do
+        [ -n "$line" ] && choices+=("$line")
+    done < <(list_charset_files)
+
+    if [ ${#choices[@]} -eq 0 ] && [ "$NON_INTERACTIVE" = true ]; then
+        print_warning "No $DEFAULT_CHARSET_FILE — skipping console PSF."
+        PSF_SKIP=true
+        return 0
+    fi
+
+    # Non-interactive: tracked default charset (only reached when forced or
+    # ask_yes_no already said y — and with default n, -y alone never gets here
+    # unless --psf / --charset / --psf-scale).
+    if [ "$NON_INTERACTIVE" = true ]; then
+        if [ ! -f "$DEFAULT_CHARSET_FILE" ]; then
+            print_warning "No $DEFAULT_CHARSET_FILE — skipping console PSF."
+            PSF_SKIP=true
+            return 0
+        fi
+        PSF_CHARSET="$DEFAULT_CHARSET_FILE"
+        echo -e "  ${DIM}charset: $PSF_CHARSET (default)${NC}"
+        choose_psf_scale
+        return $?
+    fi
+
+    # Interactive: numbered list + free-path entry.
+    local i
+    if [ ${#choices[@]} -gt 0 ]; then
+        echo -e "  ${DIM}Pick a charset, or type a path to another JSON:${NC}"
+        for i in "${!choices[@]}"; do
+            local label="${choices[$i]}"
+            local tag=""
+            [ "$label" = "$DEFAULT_CHARSET_FILE" ] && tag=" ${DIM}(default)${NC}"
+            echo -e "    $((i + 1))) ${BOLD}$label${NC}$tag"
+        done
+    else
+        echo -e "  ${DIM}No console-charset*.json found. Type a path to a charset JSON:${NC}"
+    fi
+
+    local default_ans=1
+    if [ ${#choices[@]} -eq 0 ]; then
+        default_ans=""
+    fi
+    printf "${YELLOW}?${NC} Charset [default %s]: " "${default_ans:-path}"
+    local ans=""
+    read -r ans
+    ans="${ans:-$default_ans}"
+
+    if [[ "$ans" =~ ^[0-9]+$ ]] && [ "$ans" -ge 1 ] && [ "$ans" -le ${#choices[@]} ]; then
+        PSF_CHARSET="${choices[$((ans - 1))]}"
+    elif [ -n "$ans" ]; then
+        PSF_CHARSET="$ans"
+    else
+        print_error "No charset selected."
+        return 1
+    fi
+
+    if [ ! -f "$PSF_CHARSET" ]; then
+        print_error "Charset not found: $PSF_CHARSET"
+        return 1
+    fi
+    print_info "Console PSF charset: ${BOLD}$PSF_CHARSET${NC}"
+    choose_psf_scale
+    return $?
+}
+
+# Integer nearest-neighbor upscale for PSF cells only (not the TTF scale factor).
+# Default 1 = native pixels. --psf-scale N pins it and skips the prompt.
+choose_psf_scale() {
+    if [ "$PSF_SKIP" = true ]; then
+        return 0
+    fi
+
+    if [ "$PSF_SCALE_SET" = true ]; then
+        if ! [[ "$PSF_SCALE" =~ ^[1-9][0-9]*$ ]]; then
+            print_error "PSF scale must be an integer ≥ 1 (got '$PSF_SCALE')"
+            return 1
+        fi
+        print_info "Console PSF scale: ${BOLD}×$PSF_SCALE${NC} (--psf-scale)."
+        return 0
+    fi
+
+    print_info "PSF scale is nearest-neighbor only (1 = native, 2 = double, …)."
+    print_info "${DIM}Separate from the TTF 'Scale factor on top' prompt.${NC}"
+    printf "${YELLOW}?${NC} PSF scale [default 1]: "
+    local ans=""
+    if [ "$NON_INTERACTIVE" = true ]; then
+        echo -e "${DIM}1${NC}"
+        ans=1
+    else
+        read -r ans
+        ans="${ans:-1}"
+    fi
+    if ! [[ "$ans" =~ ^[1-9][0-9]*$ ]]; then
+        print_error "PSF scale must be an integer ≥ 1 (got '$ans')"
+        return 1
+    fi
+    PSF_SCALE="$ans"
+    if [ "$PSF_SCALE" != "1" ]; then
+        print_info "Console PSF scale: ${BOLD}×$PSF_SCALE${NC}"
+    fi
+    return 0
+}
+
+# Linux console PSF fonts (Raspberry Pi Lite / fbcon). Reads the mono sheet
+# (or the plain sheet when no -mono pair exists), trims to PSF_CHARSET,
+# writes build/psf/quanta-strike/*.psfu.gz. Call choose_psf_charset first.
+# Usage: run_png_to_psf family1 family2 ...
+run_png_to_psf() {
+    local families=("$@")
+
+    if [ "$PSF_SKIP" = true ]; then
+        return 0
+    fi
+    if [ -z "$PSF_CHARSET" ] || [ ! -f "$PSF_CHARSET" ]; then
+        print_error "No PSF charset resolved (internal error — choose_psf_charset first)"
+        return 1
+    fi
+    if [ ! -f "$SCRIPTS_DIR/png-to-psf.py" ]; then
+        print_error "scripts/png-to-psf.py not found"
+        return 1
+    fi
+
+    local charset_suffix suffix_flag="" scale_flag=""
+    charset_suffix="$(charset_suffix_of "$PSF_CHARSET")"
+    [ -n "$charset_suffix" ] && suffix_flag="--suffix $charset_suffix"
+    scale_flag="--scale $PSF_SCALE"
+
+    print_info "Building console PSF fonts → ${DIM}$PSF_DIR${NC}"
+    print_info "  charset: ${DIM}$PSF_CHARSET${NC}"
+    [ -n "$charset_suffix" ] && print_info "  output suffix: ${DIM}-${charset_suffix}${NC}"
+    [ "$PSF_SCALE" != "1" ] && print_info "  scale: ${DIM}×$PSF_SCALE${NC}"
+
+    rm -rf "$PSF_DIR"
+    mkdir -p "$PSF_DIR"
+
+    local built=0
+    local family_name style styles src_name json
+    for family_name in "${families[@]}"; do
+        styles=()
+        while IFS= read -r style; do
+            [ -n "$style" ] && styles+=("$style")
+        done < <(discover_styles "$family_name")
+
+        for style in "${styles[@]}"; do
+            local dir="$SRC_DIR/$family_name/$style"
+            src_name="$(pick_sheet "$dir" "$family_name" "$style" "-mono")"
+            if [ -z "$src_name" ]; then
+                print_warning "$family_name/$style: no PNG+JSON sheet — skipping PSF"
+                continue
+            fi
+            json="$dir/$src_name.json"
+            # shellcheck disable=SC2086
+            if python3 "$SCRIPTS_DIR/png-to-psf.py" --charset "$PSF_CHARSET" \
+                    $suffix_flag $scale_flag "$json" "$PSF_DIR"; then
+                built=$((built + 1))
+            else
+                print_error "png-to-psf failed for $family_name/$style ($src_name)"
+                return 1
+            fi
+        done
+    done
+
+    if [ $built -eq 0 ]; then
+        print_warning "No console PSF fonts were built"
+        return 1
+    fi
+    print_success "Built $built console PSF font(s)"
     return 0
 }
 
@@ -1182,6 +1439,11 @@ main() {
         fi
     fi
 
+    # Console PSF charset (or --no-psf / --charset). Default = console-charset.json.
+    if ! choose_psf_charset; then
+        exit 1
+    fi
+
     # ─── Step 4: Process each variant, then WOFF2, then Nerd (mono, slow) last ─
     echo
     echo "────────────────────────────────────────────────────────────────"
@@ -1212,6 +1474,13 @@ main() {
     # Mono variant — "-mono" family suffix; this is the one that gets Nerd icons.
     if ! build_variant "mono" "$BUILD_DIR/tmp/src-mono" \
             "$mono_group" "monospace" "" "-mono" "${selected_families[@]}"; then
+        exit 1
+    fi
+
+    # Console PSF (mono cell bitmaps, trimmed to the chosen charset). Independent
+    # of the TTF pipeline — reads src/ directly. Skipped via --no-psf / prompt.
+    echo
+    if ! run_png_to_psf "${selected_families[@]}"; then
         exit 1
     fi
 
@@ -1278,6 +1547,11 @@ main() {
     [ "$do_woff2" = true ] && print_success "Wrote drop-in CSS → $BUILD_DIR/woff2/quanta-strike.css"
     [ "$do_nerd" = true ] && print_success "Generated Nerd Font variants (mono only): ${selected_families[*]}"
     [ "$do_woff2_nerd" = true ] && print_success "Exported Nerd Font WOFF2 variants"
+    if [ "$PSF_SKIP" != true ] && [ -n "$PSF_CHARSET" ]; then
+        local psf_note="$PSF_CHARSET"
+        [ "$PSF_SCALE" != "1" ] && psf_note="$psf_note ×$PSF_SCALE"
+        print_success "Built console PSF fonts ($psf_note) → $PSF_DIR"
+    fi
     [ -f "$LICENSE_FILE" ] && print_success "Shipped $LICENSE_FILE with the fonts (required by the OFL)"
 
     echo
@@ -1287,13 +1561,14 @@ main() {
 show_help() {
     echo "Interactive Font Generator"
     echo
-    echo "Usage: $0 [--defaults|-y] [--spacing V] [--nerd-fonts] [--keep-tmp]"
+    echo "Usage: $0 [--defaults|-y] [--spacing V] [--nerd-fonts] [--psf] [--charset PATH] [--psf-scale N] [--no-psf] [--keep-tmp]"
     echo
     echo "Options:"
     echo "  --defaults, -y   Non-interactive: take the DEFAULT answer to every"
     echo "                   prompt and don't ask. Note the defaults are not all"
-    echo "                   \"yes\" — version = keep, Nerd Fonts = no — which is"
-    echo "                   why this isn't --yes. Builds ALL strikes (both variants)."
+    echo "                   \"yes\" — version = keep, Nerd Fonts = no, console PSF"
+    echo "                   = no — which is why this isn't --yes. Builds ALL"
+    echo "                   strikes (both variants)."
     echo "  --spacing V      Force the proportional inter-glyph gap for ALL strikes:"
     echo "                   a pixel count, or 'auto' (scale with size: 1px N<11,"
     echo "                   2px 11–18, 3px N>18). Skips the prompt. If not given,"
@@ -1301,22 +1576,39 @@ show_help() {
     echo "                   Mono is unaffected."
     echo "  --nerd-fonts     Opt in to Nerd Font generation (mono variant only, the"
     echo "                   slow step). Aliases: --nerd. Off unless given."
+    echo "  --psf            Opt in to console PSF fonts (Linux/Raspberry Pi fbcon)."
+    echo "                   Aliases: --psf-fonts. Off unless given — not part of"
+    echo "                   the main release; for local/clone builds (or an optional"
+    echo "                   separate release asset). Also implied by --charset /"
+    echo "                   --psf-scale."
+    echo "  --charset PATH   Console PSF glyph allowlist JSON. Implies --psf. Default"
+    echo "                   charset is console-charset.json. Local variants like"
+    echo "                   console-charset-hr.json stay untracked."
+    echo "  --psf-scale N    Integer nearest-neighbor upscale for console PSF only"
+    echo "                   (default 1). Implies --psf. Separate from the TTF"
+    echo "                   'Scale factor on top'. e.g. --psf-scale 2 → 7×14 becomes"
+    echo "                   14×28, file suffix -2x."
+    echo "  --no-psf         Skip console PSF fonts entirely (wins over --psf)."
     echo "  --keep-tmp       Keep the build/tmp staging dir after the build (for"
     echo "                   inspecting the intermediate TTFs). Removed by default."
     echo "  --help, -h       Show this help"
     echo
-    echo "  e.g. $0 -y --spacing 2 --nerd-fonts   # non-interactive, 2px gap, with Nerd"
+    echo "  e.g. $0 -y --spacing 2 --nerd-fonts   # release-style: no PSF"
+    echo "       $0 -y --psf --charset console-charset-hr.json --psf-scale 2"
     echo
     echo "Flow:"
     echo "  1. Select font families (space to toggle, a to select all)"
     echo "  2. Configure metadata options (applied to both variants)"
-    echo "  3. Choose optional features (small caps, old-style figures, nerd fonts, WOFF2)"
+    echo "  3. Choose optional features (small caps, old-style figures, nerd fonts,"
+    echo "     WOFF2, console PSF charset + scale)"
     echo "  4. Build EACH strike twice — a proportional variant (quanta-strike-N)"
     echo "     and a mono variant (quanta-strike-N-mono) — via scripts/png-to-ttf.py into"
-    echo "     build/tmp; then base WOFF2, then Nerd Fonts (mono variant only) last"
+    echo "     build/tmp; then console PSF if opted in; then base WOFF2, then Nerd"
+    echo "     Fonts (mono variant only) last"
     echo
     echo "Requirements:"
     echo "  - scripts/png-to-ttf.py (builds each strike's TTF from its PNG + JSON)"
+    echo "  - scripts/png-to-psf.py + console-charset.json (optional console PSF fonts)"
     echo "  - scripts/font-metadata-patcher.py"
     echo "  - FontForge with Python bindings (brew install fontforge)"
     echo "  - scripts/generate-nerd-fonts script (for nerd font variants)"
@@ -1336,6 +1628,38 @@ while [ $# -gt 0 ]; do
             ;;
         --nerd-fonts|--nerd)
             NERD_FORCED=true
+            ;;
+        --psf|--psf-fonts)
+            PSF_FORCED=true
+            ;;
+        --no-psf)
+            PSF_SKIP=true
+            ;;
+        --charset)
+            if [ $# -lt 2 ]; then
+                print_error "--charset needs a path (e.g. --charset console-charset-hr.json)"
+                exit 1
+            fi
+            PSF_CHARSET="$2"
+            PSF_CHARSET_SET=true
+            shift
+            ;;
+        --charset=*)
+            PSF_CHARSET="${1#*=}"
+            PSF_CHARSET_SET=true
+            ;;
+        --psf-scale)
+            if [ $# -lt 2 ]; then
+                print_error "--psf-scale needs an integer ≥ 1 (e.g. --psf-scale 2)"
+                exit 1
+            fi
+            PSF_SCALE="$2"
+            PSF_SCALE_SET=true
+            shift
+            ;;
+        --psf-scale=*)
+            PSF_SCALE="${1#*=}"
+            PSF_SCALE_SET=true
             ;;
         --keep-tmp)
             KEEP_TMP=true

@@ -8,6 +8,9 @@ __pycache__/
 # Build output (regenerated from src/ by the pipeline)
 /build/
 
+# Local console charset variants (console-charset.json is the tracked default)
+/console-charset-*.json
+
 # Build zip
 quanta-strike-*.*.*.zip
 quanta-strike.zip

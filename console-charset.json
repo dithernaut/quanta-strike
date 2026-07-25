@@ -1,0 +1,14 @@
+{
+  "description": "Default Linux console PSF allowlist (≤256 glyphs, 16 colours). Lat15 (Western European) + classic VGA/CP437 graphics — the usual coverage of fonts like Lat15-Terminus. Includes ░▒▓█.",
+  "max-glyphs": 256,
+  "glyphs": [
+    " !\"#$%&'()*+,-./0123456789:;<=>?",
+    "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_",
+    "`abcdefghijklmnopqrstuvwxyz{|}~¡",
+    "¢£€¥Š§š©ª«®°±²³Žµ¶ž¹º»ŒœŸ¿ÀÁÂÃÄÅ",
+    "ÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖ×ØÙÚÛÜÝÞßàáâãäå",
+    "æçèéêëìíîïðñòóôõö÷øùúûüýþÿ░▒▓█▀▄",
+    "▌▐─│┌┐└┘├┤┬┴┼═║╔╗╚╝╠╣╦╩╬■□▪▫●○•←",
+    "↑→↓↔≤≥≈≠∞´↖↗↘↙◆◇▲▼▶◀△▽–—…‚„“”‘’‹"
+  ]
+}
