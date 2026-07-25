@@ -101,12 +101,18 @@ Tag that commit. Then anyone can rebuild that exact release.
 
 Zip the build folder and attach it to a release on the tag. A normal release
 build (`./build.sh --nerd-fonts`, no `--psf`) fills `build/ttf` and
-`build/woff2` (and puts `OFL.txt` next to the fonts). Zipping `build/` is fine.
+`build/woff2` (and puts `OFL.txt` next to the fonts).
+
+Use a stable name (`quanta-strike.zip`) so outside links can point at
+`…/releases/latest/download/quanta-strike.zip` without a version in the URL.
+Rename the folder inside the zip so unpacking yields `quanta-strike/`:
 
 ```bash
 rm -rf build/tmp                    # staging, only present if a build failed
 find build -name .DS_Store -delete  # macOS clutter
-zip -r quanta-strike-$(cat VERSION).zip build
+mv build quanta-strike
+zip -r quanta-strike.zip quanta-strike
+mv quanta-strike build
 ```
 
 If you built console PSF earlier in the same tree, remove it before the main
@@ -126,7 +132,7 @@ Raspberry Pi / Linux framebuffer users:
 
 ```bash
 ./build.sh -y --psf --psf-scale 2          # or interactive, say yes to PSF
-zip -r quanta-strike-$(cat VERSION)-console-psf.zip build/psf
+zip -r quanta-strike-console-psf.zip build/psf
 ```
 
 Ship the default Lat15 `console-charset.json` for that asset. Leave personal
@@ -173,8 +179,8 @@ cat VERSION                    # 2. check the number
 git add VERSION package/package.json
 git commit -m "Release $(cat VERSION)"
 git tag v$(cat VERSION) && git push && git push --tags
-zip -r quanta-strike-$(cat VERSION).zip build   # 5. GitHub release
-# optional: zip -r quanta-strike-$(cat VERSION)-console-psf.zip build/psf
+mv build quanta-strike && zip -r quanta-strike.zip quanta-strike && mv quanta-strike build   # 5. GitHub release
+# optional: zip -r quanta-strike-console-psf.zip build/psf
 cd package && npm publish      # 6. send the package
 ```
 
@@ -187,8 +193,8 @@ Every release:
 - [ ] `git add VERSION package/package.json && git commit -m "Release $(cat VERSION)"`
 - [ ] `git tag v$(cat VERSION) && git push && git push --tags`
 - [ ] `rm -rf build/tmp && find build -name .DS_Store -delete` (optional, shouldn't be there anymore)
-- [ ] `zip -r quanta-strike-$(cat VERSION).zip build`, attach to the GitHub release
-- [ ] Optional: `./build.sh -y --psf` and attach `…-console-psf.zip` as a second asset
+- [ ] `mv build quanta-strike && zip -r quanta-strike.zip quanta-strike && mv quanta-strike build`, attach to the GitHub release
+- [ ] Optional: `./build.sh -y --psf` and attach `quanta-strike-console-psf.zip` as a second asset
 - [ ] `cd package && npm pack --dry-run`, read the list
 - [ ] `npm publish`
 - [ ] `npm view quanta-strike version` shows the new number
