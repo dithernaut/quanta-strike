@@ -6,6 +6,8 @@ A modern pixel typeface. I draw each size by hand. Non-integer scaling ruins
 pixels, so this repo ships a family of _strikes_. Each strike is its own design
 for one target size.
 
+🌐 [**Playground**](https://quantastrike.dithernaut.com)
+
 💾 [**Download .ttf and .woff2**](https://github.com/dithernaut/quanta-strike/releases/latest/download/quanta-strike.zip)
 
 📖 **Read the story:** [dithernaut.com/posts/pixel-scaling](https://dithernaut.com/posts/pixel-scaling)
@@ -43,7 +45,7 @@ abcdefghijklmnopqrstuvwxyz
 
 Each strike also supports [old style figures](https://en.wikipedia.org/wiki/Text_figures), and [small caps](https://en.wikipedia.org/wiki/Small_caps).
 
-`quanta-strike-12` currently covers many more glyphs than the other strikes (1,100+).
+`quanta-strike-12` currently covers many more glyphs than the other strikes (1,100+), and supports bold.
 
 ## What this repo is
 
@@ -92,6 +94,25 @@ You need [FontForge](https://fontforge.org/) with Python bindings
 
 The release number lives in [`VERSION`](VERSION). A successful build writes the
 bump back.
+
+### Adding a weight
+
+A strike's weights are just folders next to `regular/`. Drop the sheet in and
+build — nothing to register:
+
+```
+src/quanta-strike-12/
+  regular/quanta-strike-12.{png,json}
+  bold/quanta-strike-12-bold.{png,json}   # -> weight 700
+```
+
+The folder names the weight (`thin` … `black`, plus `bold-italic` and friends);
+an unknown name fails the build instead of quietly shipping as regular. The
+sheet itself can be `quanta-strike-12-bold` or plain `quanta-strike-12` — the
+folder already says bold, so the suffix is yours to keep or drop. Every
+weight lands on the same CSS family, so `font-weight` and `<strong>` pick it up
+and the `qs-*` classes don't change. Details:
+[docs/SOURCE-FORMAT.md](docs/SOURCE-FORMAT.md#weights).
 
 To publish fonts and the npm package together:
 

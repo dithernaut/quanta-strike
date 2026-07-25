@@ -29,11 +29,13 @@ except ImportError:
 # Weight mapping for OS/2 weight class
 WEIGHT_MAP = {
     'thin': 100,
+    'hairline': 100,
     'extralight': 200,
     'ultralight': 200,
     'light': 300,
     'regular': 400,
     'normal': 400,
+    'book': 400,
     'medium': 500,
     'semibold': 600,
     'demibold': 600,
@@ -43,6 +45,26 @@ WEIGHT_MAP = {
     'black': 900,
     'heavy': 900
 }
+
+# Weight words that are two words run together, and how they should read in the
+# name records. Anything not listed here just gets title-cased.
+WEIGHT_DISPLAY = {
+    'extralight': 'ExtraLight',
+    'ultralight': 'UltraLight',
+    'semibold': 'SemiBold',
+    'demibold': 'DemiBold',
+    'extrabold': 'ExtraBold',
+    'ultrabold': 'UltraBold',
+}
+
+ITALIC_TOKENS = ('italic', 'oblique')
+
+# Longest first, so "extrabold" is not read as "bold" by the substring fallback.
+WEIGHTS_LONGEST_FIRST = tuple(sorted(WEIGHT_MAP, key=len, reverse=True))
+
+# Splits a style folder or filename into words: "bold-italic", "bold_italic",
+# "Bold Italic" all become ['bold', 'italic'].
+TOKEN_SPLIT_RE = re.compile(r'[\s_-]+')
 
 # Width mapping for OS/2 width class
 WIDTH_MAP = {
@@ -79,47 +101,126 @@ def setup_logger(debug=False):
     
     return logger
 
-def parse_style_from_filename(filename):
-    """Parse style information from filename"""
-    filename_lower = filename.lower()
-    
-    # Remove file extension
-    name_base = os.path.splitext(filename_lower)[0]
-    
-    # Check for style indicators
-    is_bold = any(weight in name_base for weight in ['bold', 'black', 'heavy', 'extrabold', 'ultrabold'])
-    is_italic = any(style in name_base for style in ['italic', 'oblique'])
-    
-    # Determine weight
+def parse_style(name, allow_substring=False):
+    """Read weight + italic out of a style folder name (or a filename).
+
+    Words are matched WHOLE — 'light' in "light" is a weight, in "lighthouse" is
+    not — so a family name that merely contains a weight word can't be misread.
+    Glued forms are handled too: "bolditalic" splits into bold + italic.
+
+    allow_substring re-enables a loose scan for names with no separators at all
+    ("MyFontBold.ttf"); it is only used when parsing a bare filename, never a
+    style folder, where the folder name IS the style and needs no guessing.
+
+    Returns (weight, is_italic, unknown) — `unknown` being the words that meant
+    nothing, which is how known_style tells a real weight from a typo.
+    """
+    base = os.path.splitext(name)[0].lower()
+    tokens = [t for t in TOKEN_SPLIT_RE.split(base) if t]
+
     weight = 'regular'
-    for w in ['thin', 'extralight', 'ultralight', 'light', 'medium', 'semibold', 'demibold', 'bold', 'extrabold', 'ultrabold', 'black', 'heavy']:
-        if w in name_base:
-            weight = w
-            break
-    
-    # Build style name
-    style_parts = []
-    if weight != 'regular':
-        style_parts.append(weight)
+    is_italic = False
+    unknown = []
+
+    for token in tokens:
+        word = token
+        # Peel a trailing italic/oblique off the word first, so "bolditalic"
+        # and "italic" both reduce to the weight part (possibly empty).
+        for suffix in ITALIC_TOKENS:
+            if word.endswith(suffix):
+                word = word[:-len(suffix)]
+                is_italic = True
+                break
+        if word in WEIGHT_MAP:
+            weight = word
+        elif word:
+            unknown.append(token)
+
+    if weight == 'regular' and allow_substring:
+        for candidate in WEIGHTS_LONGEST_FIRST:
+            if candidate in base:
+                weight = candidate
+                break
+        if not is_italic:
+            is_italic = any(t in base for t in ITALIC_TOKENS)
+
+    return weight, is_italic, unknown
+
+
+def known_style(name):
+    """Is every word in this style folder name one we understand?
+
+    The folder name is the ONLY thing that sets the weight, so a typo has to be
+    caught: 'semibld/' would otherwise parse as regular, get stamped weight 400,
+    and overwrite the real regular on its way out.
+    """
+    _, _, unknown = parse_style(name)
+    return not unknown
+
+
+def style_display_name(weight, is_italic):
+    """The style as it should read in the name records: 'SemiBold Italic'."""
+    parts = []
+    if weight != 'regular' or not is_italic:
+        parts.append(WEIGHT_DISPLAY.get(weight, weight.title()))
     if is_italic:
-        style_parts.append('italic')
-    
-    style = ' '.join(style_parts) if style_parts else 'regular'
-    
+        parts.append('Italic')
+    return ' '.join(parts)
+
+
+def style_info_from_name(name, allow_substring=False):
+    """Full style record for a style folder name or a filename."""
+    weight, is_italic, _ = parse_style(name, allow_substring)
+    display = style_display_name(weight, is_italic)
     return {
-        'style': style,
+        'style': display.lower(),
+        'display': display,
         'weight': weight,
-        'is_bold': is_bold,
-        'is_italic': is_italic
+        'is_italic': is_italic,
+        # RIBBI: only the true Bold member carries the bold bit. Black/ExtraBold
+        # are their own legacy family (see ribbi_names), so flagging them bold
+        # would make them fight the real Bold for the same slot.
+        'is_bold': weight == 'bold',
     }
 
+
+def parse_style_from_filename(filename):
+    """Parse style information from a filename (loose match, no style folder)."""
+    return style_info_from_name(filename, allow_substring=True)
+
+
+def ribbi_names(family_name, style_info):
+    """Split a style into the legacy (ID 1/2) and preferred (ID 16/17) names.
+
+    Name ID 2 only has four legal values — Regular, Bold, Italic, Bold Italic —
+    so a family with more than those has to hand every extra weight its OWN
+    legacy family: "quanta-strike-12 Light" / "Regular". IDs 16/17 then put them
+    back together as one family for anything that reads them, which is every
+    browser and every modern app. Skip this and Light installs as a separate
+    family on Windows and can win the Regular slot outright.
+    """
+    weight = style_info['weight']
+    is_italic = style_info['is_italic']
+    preferred_style = style_info['display']
+
+    if weight in ('regular', 'bold'):
+        # RIBBI proper: the style fits ID 2 as-is.
+        return family_name, preferred_style, family_name, preferred_style
+
+    legacy_family = f"{family_name} {WEIGHT_DISPLAY.get(weight, weight.title())}"
+    legacy_style = 'Italic' if is_italic else 'Regular'
+    return legacy_family, legacy_style, family_name, preferred_style
+
+
 def get_style_map_flags(is_bold, is_italic):
-    """Get OS/2 style map flags"""
+    """Get OS/2 style map flags (fsSelection)"""
     flags = 0
     if is_italic:
         flags |= 1  # Italic bit
     if is_bold:
         flags |= 32  # Bold bit
+    if not flags:
+        flags |= 64  # Regular bit — mutually exclusive with the two above
     return flags
 
 def set_font_metadata(font, family_name, style_info, args, logger):
@@ -128,17 +229,24 @@ def set_font_metadata(font, family_name, style_info, args, logger):
     weight = style_info['weight']
     is_bold = style_info['is_bold']
     is_italic = style_info['is_italic']
-    
+
+    # Legacy (ID 1/2) vs preferred (ID 16/17) split — see ribbi_names.
+    legacy_family, legacy_style, pref_family, pref_style = ribbi_names(family_name, style_info)
+
     # Apply lowercase if requested
     if args.lowercase:
         family_name = family_name.lower()
         style = style.lower()
         weight = weight.lower()
-    
+        legacy_family = legacy_family.lower()
+        legacy_style = legacy_style.lower()
+        pref_family = pref_family.lower()
+        pref_style = pref_style.lower()
+
     # Generate names
     font_name = f"{family_name}-{style.replace(' ', '')}"
     human_name = f"{family_name} {style}"
-    
+
     logger.info(f"Setting metadata for {font_name}")
     
     # Set PS Names
@@ -173,16 +281,14 @@ def set_font_metadata(font, family_name, style_info, args, logger):
     # Clear existing SFNT names to avoid conflicts
     font.sfnt_names = ()
     
-    # Set TTF Names (SFNT names)
-    # Use appropriate case for style names
-    style_display = style if args.lowercase else style.title()
-    
-    font.appendSFNTName('English (US)', 'Family', family_name)
-    font.appendSFNTName('English (US)', 'SubFamily', style_display)
+    # Set TTF Names (SFNT names). Family/SubFamily are the legacy RIBBI pair;
+    # Preferred Family/Styles carry the real grouping for weights that don't fit.
+    font.appendSFNTName('English (US)', 'Family', legacy_family)
+    font.appendSFNTName('English (US)', 'SubFamily', legacy_style)
     font.appendSFNTName('English (US)', 'Fullname', human_name)
     font.appendSFNTName('English (US)', 'PostScriptName', font_name)
-    font.appendSFNTName('English (US)', 'Preferred Family', family_name)
-    font.appendSFNTName('English (US)', 'Preferred Styles', style_display)
+    font.appendSFNTName('English (US)', 'Preferred Family', pref_family)
+    font.appendSFNTName('English (US)', 'Preferred Styles', pref_style)
     font.appendSFNTName('English (US)', 'UniqueID', f"{family_name}-{style.replace(' ', '')}")
     
     # Set version in SFNT names
@@ -240,11 +346,11 @@ def process_font_file(font_path, family_name, style_folder, output_dir, args, lo
         
         # Parse style from folder name or filename
         if style_folder:
-            # Use folder name as style if available
-            style_name = style_folder.replace('_', ' ').replace('-', ' ')
-            # Still parse for weight and italic info
-            style_info = parse_style_from_filename(font_path.name)
-            style_info['style'] = style_name
+            # The style folder IS the style: src/<family>/bold/ -> Bold. Read it
+            # from the folder, never the filename — the filename here is the
+            # family (quanta-strike-12.ttf) and carries no weight at all, which
+            # is why every style used to come out at weight 400.
+            style_info = style_info_from_name(style_folder)
         else:
             style_info = parse_style_from_filename(font_path.name)
         
@@ -306,6 +412,20 @@ def process_family_directory(family_dir, output_dir, args, logger):
         # Process each style directory
         for style_dir in style_dirs:
             style_name = style_dir.name
+
+            # The folder name is the ONLY thing that sets the weight, so a typo
+            # can't be allowed through: it would parse as regular, be stamped
+            # weight 400, and overwrite the real regular in the output folder.
+            if not known_style(style_name):
+                logger.error(
+                    f"'{style_name}' is not a weight I recognise — it is a style "
+                    f"folder of {family_dir.name}, i.e. src/<strike>/{style_name}/. "
+                    f"The style folder names the weight, so use one of: "
+                    f"{', '.join(sorted(WEIGHT_MAP))}; add 'italic' for an italic "
+                    f"(e.g. 'bold-italic')."
+                )
+                sys.exit(1)
+
             font_files = find_font_files(style_dir)
             
             if font_files:

@@ -6,6 +6,8 @@ A modern pixel typeface. I draw each size by hand. Non-integer scaling ruins
 pixels, so quanta-strike ships a family of _strikes_. Each strike is its own
 design for one target size.
 
+🌐 [**Playground**](https://quantastrike.dithernaut.com)
+
 📖 **Read the story:** [dithernaut.com/posts/pixel-scaling](https://dithernaut.com/posts/pixel-scaling)
 
 ![All the available strikes of `quanta-strike`](https://raw.githubusercontent.com/dithernaut/quanta-strike/main/docs/quanta-strikes.avif)
@@ -51,6 +53,19 @@ Or the CDN:
 ```
 
 Strikes: `6`, `10`, `12`, `14`, `16`, `18`, `20`, `32`.
+
+### Weights
+
+Where a strike ships more than one weight, they all sit on the same family — so
+`font-weight` and `<strong>` just work, and the class stays the same:
+
+```html
+<p class="qs-12">body text with <strong>bold</strong> in it</p>
+<p class="qs-12" style="font-weight: 300">light, if the strike draws it</p>
+```
+
+A strike that only ships regular behaves as it always has: the browser
+synthesises bold for it.
 
 ## Type scale (Tailwind)
 

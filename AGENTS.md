@@ -7,11 +7,25 @@ before doing anything.
 ## What it is
 - A family of **strikes** — one design per target size: `quanta-strike-6`, `-10`, `-12`,
   `-14`, `-16`, `-18`, `-20` (more may exist). Each strike is its **own font family**
-  named `quanta-strike-N`. They are NOT weights/styles of one family.
+  named `quanta-strike-N`. The different SIZES are NOT weights/styles of one family
+  (weights are — see below).
 - Source art is a drawn pixel sheet: each strike is a PNG + JSON in
-  `src/quanta-strike-N/`. `scripts/png-to-ttf.py` turns that pair into the TTF, so the TTF is a
+  `src/quanta-strike-N/<style>/`. `scripts/png-to-ttf.py` turns that pair into the TTF, so the TTF is a
   **build artifact** — the PNG + JSON are the only real source. (The TTF used to be
   exported by hand; that step is now scripted, and the build is self-contained.)
+- **Weights ARE styles of one strike.** `<style>` is the weight folder: `regular/` is the
+  one every strike has, and any sibling (`bold/`, `light/`, `semibold/`, `bold-italic/`)
+  is another weight of that same strike family. Drop the folder in and the build picks it
+  up — no registration anywhere. The sheet inside may spell the weight out or not
+  (`bold/quanta-strike-12-bold.{png,json}` and `bold/quanta-strike-12.{png,json}` are the
+  same sheet; `pick_sheet` in build.sh owns the precedence, most specific first, with a
+  `-mono` variant sheet outranking either). The folder name is the only weight signal and must be a
+  word from `WEIGHT_MAP` in `scripts/font-metadata-patcher.py`; an unrecognised one
+  **fails the build** rather than silently shipping at weight 400 and colliding with
+  regular. See [docs/SOURCE-FORMAT.md](docs/SOURCE-FORMAT.md#weights).
+  - This is the ONE axis where strikes do behave like a normal family. Sizes are still
+    separate families, and mono vs proportional are still separate families — only
+    weights live inside a family, on one `font-family` with distinct `font-weight`s.
 - **Two variants per strike, from the same source by default.** Every strike is built
   twice:
   - **mono** — `quanta-strike-N-mono`, the original fixed-advance behaviour
@@ -96,8 +110,10 @@ read, so the per-step scripts below are variant-agnostic.
     gitignored with the rest of `build/`. `src/` holds the PNG + JSON only. Run standalone
     as `scripts/png-to-ttf.py <json> <out-dir>`;
     with no out-dir it writes next to the JSON, so pass one unless you want it in src/.
-  - A strike with no PNG+JSON falls back to a prebuilt `src/<family>/regular/<family>.ttf`
+  - A style with no PNG+JSON falls back to a prebuilt `src/<family>/<style>/<family>.ttf`
     (copied into the staging dir); with neither, the build fails loudly.
+  - Output name is `<family>.ttf` for `regular`, `<family>-<style>.ttf` otherwise, so one
+    out dir can hold every weight of a strike without collisions.
 - **scripts/font-metadata-patcher.py** — names/version/license/OS2 class etc. NEVER touches
   vertical metrics (keeps the pixel grid). `--flat` writes all strikes of one variant
   into a single folder (`build/ttf/quanta-strike/` for proportional,
@@ -107,6 +123,15 @@ read, so the per-step scripts below are variant-agnostic.
   proportional, always `monospace` for mono — and is deliberately NOT read from
   `scripts/default-metadata.json` (build_variant appends it last so it wins). The proportional
   type can be set via a `prop-type` key in scripts/default-metadata.json (default `sans`).
+  - **The weight comes from the style FOLDER**, never the filename (the filename is the
+    family and holds no weight at all — reading it there is why every style used to come
+    out at 400). `WEIGHT_MAP` here is the single source of truth for weight names; the
+    tables in `scripts/generate-css.py` and `scripts/generate-nerd-fonts` mirror it and
+    must be kept in step. An unrecognised style folder aborts the build.
+  - Name IDs 1/2 only accept Regular/Bold/Italic/Bold Italic, so any other weight gets
+    its own **legacy family** (`quanta-strike-12 light` / `regular`) while IDs 16/17 put
+    it back as one family. Without that split, Light installs as a separate family on
+    Windows and can win the Regular slot. `ribbi_names()` owns this.
   - Values come from **`scripts/default-metadata.json`** at the repo root; when it exists
     build.sh reads it and asks no metadata questions (delete it to get the prompts
     back). The one exception is the **version bump, which is ALWAYS asked** and must
@@ -145,6 +170,9 @@ read, so the per-step scripts below are variant-agnostic.
   `descent = measured descender`, `ascent = the rest`; sets hhea/OS2 line metrics to the
   FULL ink extent so overshooting accents don't clip. Re-anchors whatever em the source
   exported (N×128 or the full canvas) back to N×128. Glyphs never rescaled.
+  - Metrics are computed **per family, not per file**: all weights of a strike are
+    anchored to the UNION of their ink, so they come out with identical metrics. Derived
+    per file, bold's deeper descenders would move the baseline the moment text is bolded.
 - **scripts/pixel-scale.py** — OPTIONAL uniform scale-up applied ON TOP of anchor (default
   factor 1 = no-op). Shrinks every em by one shared factor so the family renders bigger
   while the pixel stays identical across strikes. Non-integer factor → slightly soft

@@ -368,7 +368,10 @@ def convert(json_path, out_path, quiet=False, proportional=False, prop_gap=None)
     notice = " ".join(x for x in (cfg.get("font-copy", "").strip(),
                                   cfg.get("font-author", "").strip()) if x)
     font.copyright = notice
-    font.weight = cfg.get("font-style", "Regular")
+    # The style folder names the weight (src/<family>/bold/), so it is the better
+    # default than "Regular" when the JSON doesn't say. Only a seed either way —
+    # the metadata patcher sets the real weight from that same folder.
+    font.weight = cfg.get("font-style") or style_of(json_path).title()
 
     n_glyphs = n_ink = 0
     out_of_bounds = []
@@ -457,11 +460,20 @@ def convert(json_path, out_path, quiet=False, proportional=False, prop_gap=None)
 
 # ── cli ────────────────────────────────────────────────────────────────────
 
-def find_sources(src, families):
-    """Locate <family>/regular/<family>.json under src (or accept a json path).
+def style_of(json_path):
+    """The style folder a source sits in: src/<family>/<style>/<family>.json."""
+    return os.path.basename(os.path.dirname(os.path.abspath(json_path)))
 
-    Only a JSON whose basename matches its strike directory is a source, which
-    keeps scratch files like *-old.json / *-alt.png out of the build.
+
+def find_sources(src, families):
+    """Locate <family>/<style>/<family>.json under src (or accept a json path).
+
+    Every style folder of a strike is a source — `regular` plus whatever weights
+    are drawn next to it (`bold`, `light`, ...). A source JSON is named for its
+    strike, with the weight either spelled out or left off (`quanta-strike-12.json`
+    or `quanta-strike-12-bold.json` inside `bold/`, same thing — the folder
+    already says bold). Anything else is a scratch file (*-old.json, *-alt.png)
+    and stays out of the build.
     """
     if os.path.isfile(src):
         return [src]
@@ -471,18 +483,24 @@ def find_sources(src, families):
     found = []
     for json_path in sorted(glob.glob(os.path.join(src, "*", "*", "*.json"))):
         family = os.path.basename(os.path.dirname(os.path.dirname(json_path)))
-        if os.path.basename(json_path) != family + ".json":
+        style = style_of(json_path)
+        if os.path.basename(json_path) not in (f"{family}.json", f"{family}-{style}.json"):
             continue
         if families and family not in families:
             continue
         found.append(json_path)
 
-    # Also allow pointing straight at a strike directory.
+    # Also allow pointing straight at a strike directory — every style under it.
     if not found:
         family = os.path.basename(os.path.normpath(src))
-        direct = os.path.join(src, "regular", family + ".json")
-        if os.path.exists(direct) and (not families or family in families):
-            found.append(direct)
+        if not families or family in families:
+            for style_dir in sorted(glob.glob(os.path.join(src, "*", ""))):
+                style = os.path.basename(os.path.normpath(style_dir))
+                for stem in (f"{family}-{style}", family):
+                    direct = os.path.join(style_dir, stem + ".json")
+                    if os.path.exists(direct):
+                        found.append(direct)
+                        break
     return found
 
 
@@ -513,7 +531,11 @@ def main():
     for json_path in sources:
         if args.out:
             family = os.path.basename(os.path.dirname(os.path.dirname(json_path)))
-            out_path = os.path.join(args.out, family + ".ttf")
+            style = style_of(json_path)
+            # One out dir can hold every style of a strike, so a non-default
+            # style carries its name; `regular` keeps the bare <family>.ttf.
+            stem = family if style == "regular" else f"{family}-{style}"
+            out_path = os.path.join(args.out, stem + ".ttf")
         else:
             out_path = os.path.splitext(json_path)[0] + ".ttf"
         convert(json_path, out_path, quiet=args.quiet,
