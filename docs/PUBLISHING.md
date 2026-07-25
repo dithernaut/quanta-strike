@@ -99,22 +99,48 @@ Tag that commit. Then anyone can rebuild that exact release.
 
 ## 5. Publish the GitHub release
 
-Zip the build folder and attach it to a release on the tag.
+Zip the build folder and attach it to a release on the tag. A normal release
+build (`./build.sh --nerd-fonts`, no `--psf`) fills `build/ttf` and
+`build/woff2` (and puts `OFL.txt` next to the fonts).
+
+Use a stable name (`quanta-strike.zip`) so outside links can point at
+`…/releases/latest/download/quanta-strike.zip` without a version in the URL.
+Rename the folder inside the zip so unpacking yields `quanta-strike/`:
 
 ```bash
 rm -rf build/tmp                    # staging, only present if a build failed
 find build -name .DS_Store -delete  # macOS clutter
-zip -r quanta-strike-$(cat VERSION).zip build
+mv build quanta-strike
+zip -r quanta-strike.zip quanta-strike
+mv quanta-strike build
 ```
 
-Both cleanup lines matter. `build/tmp` holds intermediate TTFs, and `.DS_Store` ships
-noise to strangers.
+If you built console PSF earlier in the same tree, remove it before the main
+zip (`rm -rf build/psf`) or keep it for the optional asset below. Do not put
+personal charset builds in the primary download.
 
-The zip carries the TTFs, the WOFF2 files, the CSS, and the licence. That covers a
-designer installing fonts and a developer wiring up a site.
+Both cleanup lines matter. `build/tmp` holds intermediate TTFs. `.DS_Store`
+ships noise to strangers.
 
-Create the release on GitHub, point it at the tag, and attach the zip. Name the
-release after the version.
+The zip carries the TTFs, the WOFF2 files, the CSS, and the licence. That covers
+a designer who installs fonts and a developer who wires up a site.
+
+### Optional: console PSF asset
+
+Console PSF is opt-in. The main zip skips it. For a separate download aimed at
+Raspberry Pi / Linux framebuffer users:
+
+```bash
+./build.sh -y --psf --psf-scale 2          # or interactive, say yes to PSF
+zip -r quanta-strike-console-psf.zip build/psf
+```
+
+Ship the default Lat15 `console-charset.json` for that asset. Leave personal
+`console-charset-*.json` variants out of the release. Anyone can build PSF from
+a clone with `./build.sh --psf`.
+
+Create the release on GitHub, point it at the tag, and attach the zip(s). Name
+the release after the version.
 
 ## 6. Publish the npm package
 
@@ -153,7 +179,8 @@ cat VERSION                    # 2. check the number
 git add VERSION package/package.json
 git commit -m "Release $(cat VERSION)"
 git tag v$(cat VERSION) && git push && git push --tags
-zip -r quanta-strike-$(cat VERSION).zip build   # 5. GitHub release
+mv build quanta-strike && zip -r quanta-strike.zip quanta-strike && mv quanta-strike build   # 5. GitHub release
+# optional: zip -r quanta-strike-console-psf.zip build/psf
 cd package && npm publish      # 6. send the package
 ```
 
@@ -161,12 +188,13 @@ cd package && npm publish      # 6. send the package
 
 Every release:
 
-- [ ] `./build.sh --nerd-fonts`
+- [ ] `./build.sh --nerd-fonts` (no `--psf` unless you also want a console asset)
 - [ ] `./build-package.sh`, version line matches
 - [ ] `git add VERSION package/package.json && git commit -m "Release $(cat VERSION)"`
 - [ ] `git tag v$(cat VERSION) && git push && git push --tags`
 - [ ] `rm -rf build/tmp && find build -name .DS_Store -delete` (optional, shouldn't be there anymore)
 - [ ] `mv build quanta-strike && zip -r quanta-strike.zip quanta-strike && mv quanta-strike build`, attach to the GitHub release
+- [ ] Optional: `./build.sh -y --psf` and attach `quanta-strike-console-psf.zip` as a second asset
 - [ ] `cd package && npm pack --dry-run`, read the list
 - [ ] `npm publish`
 - [ ] `npm view quanta-strike version` shows the new number

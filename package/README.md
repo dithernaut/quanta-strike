@@ -188,6 +188,25 @@ the whole pair at a breakpoint.
 - `quanta-strike/16.css` / `16-mono.css` load one strike
 - `--font-strike-16` / `--font-strike-16-mono` for hand-rolled CSS
 
+## Linux console (headless / framebuffer)
+
+This npm package ships WOFF2 for the web. For a headless Linux box or Raspberry
+Pi Lite (the real VT/framebuffer console, not a terminal emulator), build the
+PSF bitmap fonts from the
+[source repo](https://github.com/dithernaut/quanta-strike):
+
+```bash
+git clone https://github.com/dithernaut/quanta-strike.git
+cd quanta-strike
+./build.sh --psf                  # or: ./build.sh -y --psf --psf-scale 2
+```
+
+The build writes them to `build/psf/`. Copy a `.psfu.gz` into
+`/usr/share/consolefonts/` and run `setfont`. PSF is opt-in. The main release
+zip does not include it. See [`build.sh --help`](https://github.com/dithernaut/quanta-strike)
+and [PUBLISHING.md](https://github.com/dithernaut/quanta-strike/blob/main/docs/PUBLISHING.md)
+for charset notes.
+
 ## Licence
 
 SIL Open Font License 1.1. See `OFL.txt`.
