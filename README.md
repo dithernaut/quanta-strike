@@ -103,11 +103,13 @@ build — nothing to register:
 ```
 src/quanta-strike-12/
   regular/quanta-strike-12.{png,json}
-  bold/quanta-strike-12.{png,json}      # -> weight 700
+  bold/quanta-strike-12-bold.{png,json}   # -> weight 700
 ```
 
 The folder names the weight (`thin` … `black`, plus `bold-italic` and friends);
-an unknown name fails the build instead of quietly shipping as regular. Every
+an unknown name fails the build instead of quietly shipping as regular. The
+sheet itself can be `quanta-strike-12-bold` or plain `quanta-strike-12` — the
+folder already says bold, so the suffix is yours to keep or drop. Every
 weight lands on the same CSS family, so `font-weight` and `<strong>` pick it up
 and the `qs-*` classes don't change. Details:
 [docs/SOURCE-FORMAT.md](docs/SOURCE-FORMAT.md#weights).

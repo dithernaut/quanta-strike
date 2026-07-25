@@ -113,12 +113,17 @@ build picks it up — nothing to register anywhere:
 ```
 src/quanta-strike-12/
   regular/quanta-strike-12.{png,json}
-  bold/quanta-strike-12.{png,json}        # -> quanta-strike-12-bold.ttf, weight 700
-  light/quanta-strike-12.{png,json}       # -> quanta-strike-12-light.ttf, weight 300
+  bold/quanta-strike-12-bold.{png,json}    # -> quanta-strike-12-bold.ttf, weight 700
+  light/quanta-strike-12-light.{png,json}  # -> quanta-strike-12-light.ttf, weight 300
 ```
 
-The sheet inside keeps the plain `<family>` name — the **folder** is the only thing
-that names the weight. It must be a word from `WEIGHT_MAP` in
+**The sheet may be named either way.** Inside `bold/`, both
+`quanta-strike-12-bold.{png,json}` and `quanta-strike-12.{png,json}` are read as the
+same sheet — the folder already says bold, so repeating it in the filename is optional.
+Spell it out if that helps you tell sheets apart in the app you draw them in; leave it
+off if you prefer. The `.png` and the `.json` do have to agree with each other.
+
+The **folder** is what actually sets the weight. It must be a word from `WEIGHT_MAP` in
 `scripts/font-metadata-patcher.py`, optionally with `italic`:
 
 | Folder | OS/2 weight | | Folder | OS/2 weight |

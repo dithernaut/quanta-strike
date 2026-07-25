@@ -308,6 +308,37 @@ discover_styles() {
     return 0
 }
 
+# Pick the sheet one variant should build from, inside one style folder.
+#
+# The weight may be spelled out in the filename or left off — bold/quanta-strike-12-bold
+# and bold/quanta-strike-12 are the same sheet, since the FOLDER already says bold.
+# A variant suffix (-mono) on top of either wins, because that names genuinely
+# different art rather than just restating the folder.
+#
+# Tried most specific first:
+#   quanta-strike-12-bold-mono  quanta-strike-12-mono  quanta-strike-12-bold  quanta-strike-12
+#
+# Echoes the chosen stem, or nothing if no complete PNG+JSON pair is there.
+# Usage: pick_sheet <dir> <family> <style> <suffix>
+pick_sheet() {
+    local dir="$1" family="$2" style="$3" suffix="$4"
+    local stem
+    local stems=()
+
+    if [ -n "$suffix" ]; then
+        stems+=("${family}-${style}${suffix}" "${family}${suffix}")
+    fi
+    stems+=("${family}-${style}" "${family}")
+
+    for stem in "${stems[@]}"; do
+        if [ -f "$dir/$stem.json" ] && [ -f "$dir/$stem.png" ]; then
+            echo "$stem"
+            return 0
+        fi
+    done
+    return 0
+}
+
 # The source is read from src/<family>/<style>/ but STAGED under a folder named
 # <family><suffix> — that folder name becomes the internal family name (the
 # metadata patcher takes it from the folder), which is how the mono variant gets
@@ -348,24 +379,21 @@ run_png_to_ttf() {
             local dir="$SRC_DIR/$family_name/$style"
             local stage="$STAGE_DIR/${family_name}${suffix}/$style"
 
-            # Prefer a variant-specific sheet (<family><suffix>) when the suffix
-            # names one and BOTH its png+json are present; else the plain source.
-            local src_name="$family_name"
-            if [ -n "$suffix" ] && [ -f "$dir/${family_name}${suffix}.json" ] && [ -f "$dir/${family_name}${suffix}.png" ]; then
-                src_name="${family_name}${suffix}"
-            fi
+            # Which sheet in this style folder? See pick_sheet for the order.
+            local src_name
+            src_name="$(pick_sheet "$dir" "$family_name" "$style" "$suffix")"
             local json="$dir/$src_name.json"
             local png="$dir/$src_name.png"
-            # TTF fallback: the variant-specific one if we chose that source, else plain.
-            local prebuilt="$dir/$src_name.ttf"
+            # TTF fallback: the style-specific one, else plain.
+            local prebuilt="$dir/${family_name}-${style}.ttf"
             [ -f "$prebuilt" ] || prebuilt="$dir/$family_name.ttf"
 
             mkdir -p "$stage"
 
-            if [ -f "$SCRIPTS_DIR/png-to-ttf.py" ] && [ -f "$json" ] && [ -f "$png" ]; then
+            if [ -f "$SCRIPTS_DIR/png-to-ttf.py" ] && [ -n "$src_name" ] && [ -f "$json" ] && [ -f "$png" ]; then
                 if python3 "$SCRIPTS_DIR/png-to-ttf.py" $prop_flag "$json" "$stage"; then
                     if [ "$src_name" != "$family_name" ]; then
-                        print_info "  ${DIM}$family_name/$style: using dedicated $src_name sheet${NC}"
+                        print_info "  ${DIM}$family_name/$style: using $src_name sheet${NC}"
                     fi
                     built=$((built + 1))
                 else
@@ -378,7 +406,11 @@ run_png_to_ttf() {
                 print_warning "$family_name/$style: no PNG+JSON source — using the existing TTF"
                 reused=$((reused + 1))
             else
+                local want="${family_name}-${style}.{png,json} or ${family_name}.{png,json}"
+                [ -n "$suffix" ] && want="${family_name}-${style}${suffix}.{png,json}, ${family_name}${suffix}.{png,json}, $want"
                 print_error "$family_name/$style: no PNG+JSON source and no TTF to fall back on"
+                print_error "  in $dir, wanted a MATCHING pair: $want"
+                print_error "  found: $(ls "$dir" 2>/dev/null | tr '\n' ' ')"
                 return 1
             fi
         done

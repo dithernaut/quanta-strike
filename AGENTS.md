@@ -16,7 +16,10 @@ before doing anything.
 - **Weights ARE styles of one strike.** `<style>` is the weight folder: `regular/` is the
   one every strike has, and any sibling (`bold/`, `light/`, `semibold/`, `bold-italic/`)
   is another weight of that same strike family. Drop the folder in and the build picks it
-  up — no registration anywhere. The folder name is the only weight signal and must be a
+  up — no registration anywhere. The sheet inside may spell the weight out or not
+  (`bold/quanta-strike-12-bold.{png,json}` and `bold/quanta-strike-12.{png,json}` are the
+  same sheet; `pick_sheet` in build.sh owns the precedence, most specific first, with a
+  `-mono` variant sheet outranking either). The folder name is the only weight signal and must be a
   word from `WEIGHT_MAP` in `scripts/font-metadata-patcher.py`; an unrecognised one
   **fails the build** rather than silently shipping at weight 400 and colliding with
   regular. See [docs/SOURCE-FORMAT.md](docs/SOURCE-FORMAT.md#weights).

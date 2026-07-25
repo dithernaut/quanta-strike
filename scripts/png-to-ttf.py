@@ -469,9 +469,11 @@ def find_sources(src, families):
     """Locate <family>/<style>/<family>.json under src (or accept a json path).
 
     Every style folder of a strike is a source — `regular` plus whatever weights
-    are drawn next to it (`bold`, `light`, ...). Only a JSON whose basename
-    matches its strike directory is a source, which keeps scratch files like
-    *-old.json / *-alt.png out of the build.
+    are drawn next to it (`bold`, `light`, ...). A source JSON is named for its
+    strike, with the weight either spelled out or left off (`quanta-strike-12.json`
+    or `quanta-strike-12-bold.json` inside `bold/`, same thing — the folder
+    already says bold). Anything else is a scratch file (*-old.json, *-alt.png)
+    and stays out of the build.
     """
     if os.path.isfile(src):
         return [src]
@@ -481,18 +483,24 @@ def find_sources(src, families):
     found = []
     for json_path in sorted(glob.glob(os.path.join(src, "*", "*", "*.json"))):
         family = os.path.basename(os.path.dirname(os.path.dirname(json_path)))
-        if os.path.basename(json_path) != family + ".json":
+        style = style_of(json_path)
+        if os.path.basename(json_path) not in (f"{family}.json", f"{family}-{style}.json"):
             continue
         if families and family not in families:
             continue
         found.append(json_path)
 
-    # Also allow pointing straight at a strike directory.
+    # Also allow pointing straight at a strike directory — every style under it.
     if not found:
         family = os.path.basename(os.path.normpath(src))
-        direct = os.path.join(src, "regular", family + ".json")
-        if os.path.exists(direct) and (not families or family in families):
-            found.append(direct)
+        if not families or family in families:
+            for style_dir in sorted(glob.glob(os.path.join(src, "*", ""))):
+                style = os.path.basename(os.path.normpath(style_dir))
+                for stem in (f"{family}-{style}", family):
+                    direct = os.path.join(style_dir, stem + ".json")
+                    if os.path.exists(direct):
+                        found.append(direct)
+                        break
     return found
 
 
