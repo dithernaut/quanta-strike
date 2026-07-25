@@ -99,26 +99,19 @@ Tag that commit. Then anyone can rebuild that exact release.
 
 ## 5. Publish the GitHub release
 
-Zip the **main** build (TTF / WOFF2 / CSS / licence). Do **not** include
-`build/psf/` — console PSF fonts are opt-in and stay out of the primary zip.
+Zip the build folder and attach it to a release on the tag. A normal release
+build (`./build.sh --nerd-fonts`, no `--psf`) only fills `build/ttf` and
+`build/woff2` (plus `OFL.txt` next to the fonts), so zipping `build/` is fine.
 
 ```bash
 rm -rf build/tmp                    # staging, only present if a build failed
 find build -name .DS_Store -delete  # macOS clutter
-# Main release asset (no console PSF):
-zip -r quanta-strike-$(cat VERSION).zip \
-  build/ttf build/woff2 \
-  $(find build -name OFL.txt)
+zip -r quanta-strike-$(cat VERSION).zip build
 ```
 
-Or rename and zip only those trees:
-
-```bash
-mkdir -p /tmp/quanta-strike-release
-cp -R build/ttf build/woff2 /tmp/quanta-strike-release/
-find build -name OFL.txt -exec cp {} /tmp/quanta-strike-release/ \;
-(cd /tmp && zip -r "$OLDPWD/quanta-strike-$(cat VERSION).zip" quanta-strike-release)
-```
+If you built console PSF earlier in the same tree, drop it before the main zip
+(`rm -rf build/psf`) or leave it for the optional asset below — don’t ship
+personal charset builds in the primary download.
 
 Both cleanup lines matter. `build/tmp` holds intermediate TTFs, and `.DS_Store` ships
 noise to strangers.
@@ -128,17 +121,17 @@ designer installing fonts and a developer wiring up a site.
 
 ### Optional: console PSF asset
 
-If you want a separate download for Raspberry Pi / Linux framebuffer users, build
-PSF explicitly and attach a second zip (default Lat15 charset only — keep personal
-`console-charset-*.json` variants out of the release):
+Console PSF is opt-in and not part of the main zip. If you want a separate
+download for Raspberry Pi / Linux framebuffer users:
 
 ```bash
 ./build.sh -y --psf --psf-scale 2          # or interactive, say yes to PSF
 zip -r quanta-strike-$(cat VERSION)-console-psf.zip build/psf
 ```
 
-Clones can always build PSF locally without a release asset:
-`./build.sh --psf` (or `--charset console-charset-hr.json` for a local charset).
+Use the default Lat15 `console-charset.json` for that asset — keep personal
+`console-charset-*.json` variants out of the release. Clones can always build
+PSF locally: `./build.sh --psf`.
 
 Create the release on GitHub, point it at the tag, and attach the zip(s). Name the
 release after the version.
@@ -180,8 +173,7 @@ cat VERSION                    # 2. check the number
 git add VERSION package/package.json
 git commit -m "Release $(cat VERSION)"
 git tag v$(cat VERSION) && git push && git push --tags
-zip -r quanta-strike-$(cat VERSION).zip \
-  build/ttf build/woff2 $(find build -name OFL.txt)   # 5. GitHub release (no PSF)
+zip -r quanta-strike-$(cat VERSION).zip build   # 5. GitHub release
 # optional: zip -r quanta-strike-$(cat VERSION)-console-psf.zip build/psf
 cd package && npm publish      # 6. send the package
 ```
@@ -190,12 +182,12 @@ cd package && npm publish      # 6. send the package
 
 Every release:
 
-- [ ] `./build.sh --nerd-fonts` (no `--psf` — console fonts stay out of the main zip)
+- [ ] `./build.sh --nerd-fonts` (no `--psf` unless you also want a console asset)
 - [ ] `./build-package.sh`, version line matches
 - [ ] `git add VERSION package/package.json && git commit -m "Release $(cat VERSION)"`
 - [ ] `git tag v$(cat VERSION) && git push && git push --tags`
 - [ ] `rm -rf build/tmp && find build -name .DS_Store -delete` (optional, shouldn't be there anymore)
-- [ ] Zip `build/ttf` + `build/woff2` (+ OFL), **not** all of `build/` (exclude `build/psf`), attach to the GitHub release
+- [ ] `zip -r quanta-strike-$(cat VERSION).zip build`, attach to the GitHub release
 - [ ] Optional: `./build.sh -y --psf` and attach `…-console-psf.zip` as a second asset
 - [ ] `cd package && npm pack --dry-run`, read the list
 - [ ] `npm publish`
