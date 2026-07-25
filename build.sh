@@ -73,10 +73,10 @@ NON_INTERACTIVE=false
 # the prompt defaults to no, so a plain --defaults build skips them.
 NERD_FORCED=false
 
-# Console PSF fonts (Linux/Raspberry Pi fbcon): OPT-IN, like Nerd Fonts. Not part
-# of the main release zip — clones can build locally via --psf / the prompt.
-# Default allowlist is console-charset.json (tracked); local variants like
-# console-charset-hr.json are gitignored. --no-psf forces skip.
+# Console PSF fonts (Linux/Raspberry Pi fbcon): OPT-IN, like Nerd Fonts. The main
+# release zip skips them. Clones build locally with --psf or the prompt.
+# Default allowlist is console-charset.json (tracked). Local variants like
+# console-charset-hr.json are gitignored. --no-psf forces a skip.
 DEFAULT_CHARSET_FILE="./console-charset.json"
 PSF_DIR="$BUILD_DIR/psf/quanta-strike"
 PSF_SKIP=false
@@ -504,7 +504,7 @@ list_charset_files() {
 }
 
 # Pick which charset the PSF step will use. Console PSF is OPT-IN (default no),
-# same idea as Nerd Fonts — not shipped in the main release. Honours:
+# same idea as Nerd Fonts. The main release skips it. Honours:
 #   --no-psf          → skip
 #   --psf / --charset / --psf-scale → force on (skip the yes/no)
 #   otherwise prompt (default n); --defaults takes that default and skips.
@@ -534,7 +534,7 @@ choose_psf_charset() {
     echo
     print_header "Console PSF fonts"
     print_info "≤256-glyph .psfu.gz for Linux/Raspberry Pi consoles (setfont)."
-    print_info "${DIM}Opt-in — not included in the main release zip. Local/clone builds only.${NC}"
+    print_info "${DIM}Opt-in. The main release zip skips these. Local/clone builds only.${NC}"
 
     if [ "$forced" != true ]; then
         if ! ask_yes_no "Build console PSF fonts?" "n"; then
@@ -1565,9 +1565,9 @@ show_help() {
     echo
     echo "Options:"
     echo "  --defaults, -y   Non-interactive: take the DEFAULT answer to every"
-    echo "                   prompt and don't ask. Note the defaults are not all"
-    echo "                   \"yes\" — version = keep, Nerd Fonts = no, console PSF"
-    echo "                   = no — which is why this isn't --yes. Builds ALL"
+    echo "                   prompt and don't ask. The defaults are not all \"yes\":"
+    echo "                   version = keep, Nerd Fonts = no, console PSF = no."
+    echo "                   That is why this isn't called --yes. Builds ALL"
     echo "                   strikes (both variants)."
     echo "  --spacing V      Force the proportional inter-glyph gap for ALL strikes:"
     echo "                   a pixel count, or 'auto' (scale with size: 1px N<11,"
@@ -1577,17 +1577,17 @@ show_help() {
     echo "  --nerd-fonts     Opt in to Nerd Font generation (mono variant only, the"
     echo "                   slow step). Aliases: --nerd. Off unless given."
     echo "  --psf            Opt in to console PSF fonts (Linux/Raspberry Pi fbcon)."
-    echo "                   Aliases: --psf-fonts. Off unless given — not part of"
-    echo "                   the main release; for local/clone builds (or an optional"
-    echo "                   separate release asset). Also implied by --charset /"
-    echo "                   --psf-scale."
+    echo "                   Aliases: --psf-fonts. Off unless given. The main"
+    echo "                   release skips these. Use for local/clone builds, or"
+    echo "                   an optional separate release asset. Also implied by"
+    echo "                   --charset / --psf-scale."
     echo "  --charset PATH   Console PSF glyph allowlist JSON. Implies --psf. Default"
     echo "                   charset is console-charset.json. Local variants like"
     echo "                   console-charset-hr.json stay untracked."
     echo "  --psf-scale N    Integer nearest-neighbor upscale for console PSF only"
     echo "                   (default 1). Implies --psf. Separate from the TTF"
-    echo "                   'Scale factor on top'. e.g. --psf-scale 2 → 7×14 becomes"
-    echo "                   14×28, file suffix -2x."
+    echo "                   'Scale factor on top'. Example: --psf-scale 2 turns"
+    echo "                   7×14 into 14×28 (file suffix -2x)."
     echo "  --no-psf         Skip console PSF fonts entirely (wins over --psf)."
     echo "  --keep-tmp       Keep the build/tmp staging dir after the build (for"
     echo "                   inspecting the intermediate TTFs). Removed by default."

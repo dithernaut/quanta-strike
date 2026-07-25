@@ -190,9 +190,9 @@ the whole pair at a breakpoint.
 
 ## Linux console (headless / framebuffer)
 
-This npm package ships WOFF2 for the web. If you want quanta-strike on a
-**headless** Linux box or Raspberry Pi Lite (the real VT/framebuffer console,
-not a terminal emulator), build the PSF bitmap fonts from the
+This npm package ships WOFF2 for the web. For a headless Linux box or Raspberry
+Pi Lite (the real VT/framebuffer console, not a terminal emulator), build the
+PSF bitmap fonts from the
 [source repo](https://github.com/dithernaut/quanta-strike):
 
 ```bash
@@ -201,12 +201,11 @@ cd quanta-strike
 ./build.sh --psf                  # or: ./build.sh -y --psf --psf-scale 2
 ```
 
-Output lands in `build/psf/`. Copy a `.psfu.gz` to `/usr/share/consolefonts/`
-and load it with `setfont`. Console PSF is opt-in and not part of the main
-release zip.
-Details and charset notes live
-in the repo’s [`build.sh --help`](https://github.com/dithernaut/quanta-strike)
-and [PUBLISHING.md](https://github.com/dithernaut/quanta-strike/blob/main/docs/PUBLISHING.md).
+The build writes them to `build/psf/`. Copy a `.psfu.gz` into
+`/usr/share/consolefonts/` and run `setfont`. PSF is opt-in. The main release
+zip does not include it. See [`build.sh --help`](https://github.com/dithernaut/quanta-strike)
+and [PUBLISHING.md](https://github.com/dithernaut/quanta-strike/blob/main/docs/PUBLISHING.md)
+for charset notes.
 
 ## Licence
 

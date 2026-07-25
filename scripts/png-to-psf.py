@@ -3,12 +3,12 @@
 
 Trims the sheet to a glyph allowlist (console-charset.json by default, or
 console-charset-hr.json, …) so the result fits the console's 256/512 glyph cap.
-Emits PSF2 with a Unicode map (.psfu), optionally gzip-compressed (.psfu.gz) —
-what setfont on Raspberry Pi Lite / fbcon expects.
+Emits PSF2 with a Unicode map (.psfu), optionally gzip-compressed (.psfu.gz).
+setfont on Raspberry Pi Lite / fbcon expects that format.
 
-Glyphs 0x00..0x7F are laid out as identity-mapped ASCII so the Linux console's
-"fill with glyph 0x20" quirk gets a real blank space (otherwise you get a
-screen full of '@').
+Glyphs 0x00..0x7F use identity-mapped ASCII so the Linux console's
+"fill with glyph 0x20" quirk gets a real blank space. Otherwise the screen
+fills with '@'.
 
 Mono only: each glyph is the fixed cell (glyph-width × glyph-height). No
 FontForge dependency; reuses the same PNG ink rules as scripts/png-to-ttf.py.
@@ -332,10 +332,9 @@ def write_psf2(path, glyphs, width, height, compress):
     """glyphs: list of (codepoint, bitmap-bytes).
 
     IMPORTANT: glyph index 0x20 must be U+0020 space with a blank bitmap.
-    The Linux console has a long-standing quirk where background fill uses
-    glyph slot 0x20 directly, ignoring the Unicode map — if that slot is
-    '@' (what you get if glyphs are packed as ASCII starting at index 0),
-    the whole screen fills with @.
+    The Linux console fills the background from glyph slot 0x20 and ignores
+    the Unicode map for that. If that slot is '@' (easy when you pack ASCII
+    starting at index 0), the whole screen fills with @.
     """
     charsize = ((width + 7) // 8) * height
     if len(glyphs) > 0x20:
@@ -512,7 +511,7 @@ def convert(json_path, out_path, charset, max_glyphs, quiet=False, compress=True
     if len(selected) > max_glyphs:
         raise SystemExit(
             f"error: {len(selected)} glyphs after trim exceeds max-glyphs "
-            f"{max_glyphs} — shrink the charset JSON"
+            f"{max_glyphs}. Shrink the charset JSON."
         )
 
     write_psf2(out_path, selected, out_w, out_h, compress=compress)

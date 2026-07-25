@@ -79,9 +79,9 @@ Full integration guide:
 [package/README.md](package/README.md)
 
 GitHub releases also ship a zip of the built TTFs, WOFF2 files, CSS, and licence.
-Console PSF fonts (Linux / Raspberry Pi framebuffer) are **not** in that zip —
-opt-in when you build from a clone (`./build.sh --psf`), or optionally attached
-as a separate `…-console-psf.zip` release asset.
+That zip skips console PSF fonts (Linux / Raspberry Pi framebuffer). Build them
+from a clone with `./build.sh --psf`, or attach a separate
+`…-console-psf.zip` on the release if you want.
 
 ## Build locally
 

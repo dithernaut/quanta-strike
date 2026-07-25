@@ -100,8 +100,8 @@ Tag that commit. Then anyone can rebuild that exact release.
 ## 5. Publish the GitHub release
 
 Zip the build folder and attach it to a release on the tag. A normal release
-build (`./build.sh --nerd-fonts`, no `--psf`) only fills `build/ttf` and
-`build/woff2` (plus `OFL.txt` next to the fonts), so zipping `build/` is fine.
+build (`./build.sh --nerd-fonts`, no `--psf`) fills `build/ttf` and
+`build/woff2` (and puts `OFL.txt` next to the fonts). Zipping `build/` is fine.
 
 ```bash
 rm -rf build/tmp                    # staging, only present if a build failed
@@ -109,32 +109,32 @@ find build -name .DS_Store -delete  # macOS clutter
 zip -r quanta-strike-$(cat VERSION).zip build
 ```
 
-If you built console PSF earlier in the same tree, drop it before the main zip
-(`rm -rf build/psf`) or leave it for the optional asset below — don’t ship
+If you built console PSF earlier in the same tree, remove it before the main
+zip (`rm -rf build/psf`) or keep it for the optional asset below. Do not put
 personal charset builds in the primary download.
 
-Both cleanup lines matter. `build/tmp` holds intermediate TTFs, and `.DS_Store` ships
-noise to strangers.
+Both cleanup lines matter. `build/tmp` holds intermediate TTFs. `.DS_Store`
+ships noise to strangers.
 
-The zip carries the TTFs, the WOFF2 files, the CSS, and the licence. That covers a
-designer installing fonts and a developer wiring up a site.
+The zip carries the TTFs, the WOFF2 files, the CSS, and the licence. That covers
+a designer who installs fonts and a developer who wires up a site.
 
 ### Optional: console PSF asset
 
-Console PSF is opt-in and not part of the main zip. If you want a separate
-download for Raspberry Pi / Linux framebuffer users:
+Console PSF is opt-in. The main zip skips it. For a separate download aimed at
+Raspberry Pi / Linux framebuffer users:
 
 ```bash
 ./build.sh -y --psf --psf-scale 2          # or interactive, say yes to PSF
 zip -r quanta-strike-$(cat VERSION)-console-psf.zip build/psf
 ```
 
-Use the default Lat15 `console-charset.json` for that asset — keep personal
-`console-charset-*.json` variants out of the release. Clones can always build
-PSF locally: `./build.sh --psf`.
+Ship the default Lat15 `console-charset.json` for that asset. Leave personal
+`console-charset-*.json` variants out of the release. Anyone can build PSF from
+a clone with `./build.sh --psf`.
 
-Create the release on GitHub, point it at the tag, and attach the zip(s). Name the
-release after the version.
+Create the release on GitHub, point it at the tag, and attach the zip(s). Name
+the release after the version.
 
 ## 6. Publish the npm package
 
