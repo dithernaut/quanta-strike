@@ -2,10 +2,13 @@
 
 Each strike is a **pixel sheet**: one PNG (the drawn glyphs) plus one JSON (the grid
 geometry and font settings) sitting next to it, at
-`src/quanta-strike-N/regular/quanta-strike-N.{png,json}`. `scripts/png-to-ttf.py` is the only
+`src/quanta-strike-N/<style>/quanta-strike-N.{png,json}`. `scripts/png-to-ttf.py` is the only
 thing that reads this pair; it turns them into the strike's TTF (a build artifact). The
 PNG + JSON are the **only real source** — see [AGENTS.md](AGENTS.md) for the pipeline and
 the pixel invariant.
+
+`<style>` is the **weight**, and `regular` is the one every strike has. See
+[Weights](#weights) below for adding others.
 
 This document is the authoritative shape — if it disagrees with `scripts/png-to-ttf.py`, the
 script wins.
@@ -102,14 +105,63 @@ These give the font sensible initial names; the metadata patcher overwrites them
 
 ---
 
+## Weights
+
+A strike ships one weight per **style folder**. Drop a sheet in a new folder and the
+build picks it up — nothing to register anywhere:
+
+```
+src/quanta-strike-12/
+  regular/quanta-strike-12.{png,json}
+  bold/quanta-strike-12.{png,json}        # -> quanta-strike-12-bold.ttf, weight 700
+  light/quanta-strike-12.{png,json}       # -> quanta-strike-12-light.ttf, weight 300
+```
+
+The sheet inside keeps the plain `<family>` name — the **folder** is the only thing
+that names the weight. It must be a word from `WEIGHT_MAP` in
+`scripts/font-metadata-patcher.py`, optionally with `italic`:
+
+| Folder | OS/2 weight | | Folder | OS/2 weight |
+|---|---|---|---|---|
+| `thin`, `hairline` | 100 | | `medium` | 500 |
+| `extralight`, `ultralight` | 200 | | `semibold`, `demibold` | 600 |
+| `light` | 300 | | `bold` | 700 |
+| `regular`, `normal`, `book` | 400 | | `extrabold`, `ultrabold` | 800 |
+| | | | `black`, `heavy` | 900 |
+
+Italics attach with a separator or run together: `bold-italic`, `bold_italic`,
+`bolditalic`. A folder name that is **not** a known weight fails the build rather than
+silently shipping at weight 400.
+
+Every weight is a face of the **same family**, so nothing downstream has to know which
+weights exist. The generated CSS puts them all on one `font-family`, which means the
+utility classes are unchanged and `font-weight` just works:
+
+```html
+<p class="qs-12">body text with <strong>bold</strong> in it</p>
+```
+
+A strike with only `regular/` behaves exactly as before — the browser synthesises bold
+for it, same as today.
+
+Two things are handled for you. Weights that don't fit the four legacy style slots
+(anything but Regular/Bold/Italic/Bold Italic) get the standard split across name IDs
+1/2 and 16/17, so `light` installs as part of the family instead of as a family of its
+own. And `scripts/anchor-em.py` anchors every weight of a strike to the **union** of
+their ink, so all of them share one set of vertical metrics — bolding a run of text
+can't move the baseline or grow the line box.
+
 ## Variant-specific sheets
 
 By default both the mono and proportional variants build from the one
 `quanta-strike-N.{png,json}`. A strike may optionally ship a dedicated **mono** sheet at
-`quanta-strike-N-mono.{png,json}` (same directory); when present, the mono variant builds
+`quanta-strike-N-mono.{png,json}` (same style folder); when present, the mono variant builds
 from it while the proportional variant still uses the plain sheet. With no `-mono` sheet,
 both share the plain source. (General rule: a variant with a non-empty suffix uses
 `<family><suffix>.{png,json}` when both files exist.)
+
+This is per style folder, so `bold/` can ship a dedicated mono sheet whether or not
+`regular/` does.
 
 ---
 
@@ -150,9 +202,11 @@ both share the plain source. (General rule: a variant with a non-empty suffix us
 }
 ```
 
-Build one strike standalone with:
+Build one strike standalone with (the out name is `<family>.ttf` for `regular`,
+`<family>-<style>.ttf` for any other weight, so one folder holds them all):
 
 ```
 python3 scripts/png-to-ttf.py src/quanta-strike-14/regular/quanta-strike-14.json out/
 python3 scripts/png-to-ttf.py --proportional src/quanta-strike-14/regular/quanta-strike-14.json out/
+python3 scripts/png-to-ttf.py src/quanta-strike-14/bold/quanta-strike-14.json out/
 ```

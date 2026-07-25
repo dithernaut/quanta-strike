@@ -281,16 +281,45 @@ multi_select() {
 # to $STAGE_DIR rather than back into src/; everything downstream reads it from
 # there. A strike with no PNG+JSON falls back to a prebuilt TTF in src/, which is
 # copied into the staging area so the patcher sees one uniform layout.
-# The source is read from src/<family>/regular/ but STAGED under a folder named
+# Style folders under one strike: src/<family>/<style>/. `regular` is the default
+# weight and is listed first; every sibling folder (bold, light, semibold, ...) is
+# another weight of the SAME family. The folder name is the only weight signal —
+# it flows through to the OS/2 weight class and the CSS font-weight — so it must
+# be a real style word (see WEIGHT_MAP in scripts/font-metadata-patcher.py).
+# Usage: discover_styles <family>   → one style name per line
+discover_styles() {
+    local family_name="$1"
+    local dir style
+    local has_regular=false
+    local rest=()
+
+    for dir in "$SRC_DIR/$family_name"/*/; do
+        [ -d "$dir" ] || continue          # unmatched glob stays literal
+        style="$(basename "$dir")"
+        if [ "$style" = "regular" ]; then
+            has_regular=true
+        else
+            rest+=("$style")
+        fi
+    done
+
+    [ "$has_regular" = true ] && echo "regular"
+    for style in "${rest[@]}"; do echo "$style"; done
+    return 0
+}
+
+# The source is read from src/<family>/<style>/ but STAGED under a folder named
 # <family><suffix> — that folder name becomes the internal family name (the
 # metadata patcher takes it from the folder), which is how the mono variant gets
-# its "-mono" family. prop_flag is passed straight to scripts/png-to-ttf.py (empty, or
-# "--proportional --prop-gap ...").
+# its "-mono" family. The STYLE folder is kept as-is under it, because the
+# patcher reads the weight from that folder name. prop_flag is passed straight to
+# scripts/png-to-ttf.py (empty, or "--proportional --prop-gap ...").
 #
 # A variant may have its OWN hand-drawn sheet: if a <family><suffix> pair exists
 # (e.g. quanta-strike-14-mono.{png,json}) it is used for that variant; otherwise
 # the variant falls back to the plain <family> source. So mono uses a dedicated
 # mono sheet when present, and both variants share the plain source otherwise.
+# This is per style folder: bold/ can ship a mono sheet whether or not regular/ does.
 # Usage: run_png_to_ttf "<prop_flag>" "<suffix>" family1 family2 ...
 run_png_to_ttf() {
     local prop_flag="$1"; shift
@@ -303,41 +332,56 @@ run_png_to_ttf() {
 
     local built=0
     local reused=0
+    local family_name style styles
     for family_name in "${families[@]}"; do
-        local dir="$SRC_DIR/$family_name/regular"
-        local stage="$STAGE_DIR/${family_name}${suffix}/regular"
+        styles=()
+        while IFS= read -r style; do
+            [ -n "$style" ] && styles+=("$style")
+        done < <(discover_styles "$family_name")
 
-        # Prefer a variant-specific sheet (<family><suffix>) when the suffix names
-        # one and BOTH its png+json are present; otherwise use the plain source.
-        local src_name="$family_name"
-        if [ -n "$suffix" ] && [ -f "$dir/${family_name}${suffix}.json" ] && [ -f "$dir/${family_name}${suffix}.png" ]; then
-            src_name="${family_name}${suffix}"
-        fi
-        local json="$dir/$src_name.json"
-        local png="$dir/$src_name.png"
-        # TTF fallback: the variant-specific one if we chose that source, else plain.
-        local prebuilt="$dir/$src_name.ttf"
-        [ -f "$prebuilt" ] || prebuilt="$dir/$family_name.ttf"
-
-        mkdir -p "$stage"
-
-        if [ -f "$SCRIPTS_DIR/png-to-ttf.py" ] && [ -f "$json" ] && [ -f "$png" ]; then
-            if python3 "$SCRIPTS_DIR/png-to-ttf.py" $prop_flag "$json" "$stage"; then
-                [ "$src_name" != "$family_name" ] && print_info "  ${DIM}$family_name: using dedicated $src_name sheet${NC}"
-                built=$((built + 1))
-            else
-                print_error "png-to-ttf failed for $family_name ($src_name)"
-                return 1
-            fi
-        elif [ -f "$prebuilt" ]; then
-            # No source pair (or no converter) — fall back to the checked-in TTF.
-            cp "$prebuilt" "$stage/"
-            print_warning "$family_name: no PNG+JSON source — using the existing TTF"
-            reused=$((reused + 1))
-        else
-            print_error "$family_name: no PNG+JSON source and no TTF to fall back on"
+        if [ ${#styles[@]} -eq 0 ]; then
+            print_error "$family_name: no style folders in $SRC_DIR/$family_name (expected at least regular/)"
             return 1
         fi
+
+        for style in "${styles[@]}"; do
+            local dir="$SRC_DIR/$family_name/$style"
+            local stage="$STAGE_DIR/${family_name}${suffix}/$style"
+
+            # Prefer a variant-specific sheet (<family><suffix>) when the suffix
+            # names one and BOTH its png+json are present; else the plain source.
+            local src_name="$family_name"
+            if [ -n "$suffix" ] && [ -f "$dir/${family_name}${suffix}.json" ] && [ -f "$dir/${family_name}${suffix}.png" ]; then
+                src_name="${family_name}${suffix}"
+            fi
+            local json="$dir/$src_name.json"
+            local png="$dir/$src_name.png"
+            # TTF fallback: the variant-specific one if we chose that source, else plain.
+            local prebuilt="$dir/$src_name.ttf"
+            [ -f "$prebuilt" ] || prebuilt="$dir/$family_name.ttf"
+
+            mkdir -p "$stage"
+
+            if [ -f "$SCRIPTS_DIR/png-to-ttf.py" ] && [ -f "$json" ] && [ -f "$png" ]; then
+                if python3 "$SCRIPTS_DIR/png-to-ttf.py" $prop_flag "$json" "$stage"; then
+                    if [ "$src_name" != "$family_name" ]; then
+                        print_info "  ${DIM}$family_name/$style: using dedicated $src_name sheet${NC}"
+                    fi
+                    built=$((built + 1))
+                else
+                    print_error "png-to-ttf failed for $family_name/$style ($src_name)"
+                    return 1
+                fi
+            elif [ -f "$prebuilt" ]; then
+                # No source pair (or no converter) — fall back to the checked-in TTF.
+                cp "$prebuilt" "$stage/"
+                print_warning "$family_name/$style: no PNG+JSON source — using the existing TTF"
+                reused=$((reused + 1))
+            else
+                print_error "$family_name/$style: no PNG+JSON source and no TTF to fall back on"
+                return 1
+            fi
+        done
     done
 
     if [ $built -gt 0 ]; then
@@ -1002,6 +1046,14 @@ main() {
     done
     print_info "Selected: ${selected_families[*]}"
     print_info "Each strike is built TWICE: a ${BOLD}proportional${NC} variant (quanta-strike-N) and a ${BOLD}mono${NC} variant (quanta-strike-N-mono)."
+
+    # Every style folder under a strike is another weight of it. Listed here so a
+    # mis-named folder (or a missing one) is obvious before the build starts.
+    local fam fam_styles
+    for fam in "${selected_families[@]}"; do
+        fam_styles=$(discover_styles "$fam" | tr '\n' ' ')
+        print_info "  ${DIM}$fam weights: ${fam_styles% }${NC}"
+    done
 
     # NB: the actual source build (png-to-ttf) + source guard now happen once per
     # variant inside build_variant (Step 4), since each variant trims widths

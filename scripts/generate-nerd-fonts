@@ -68,8 +68,14 @@ fi
 
 mkdir -p "$OUTPUT_DIR"
 
-# Known style tokens, longest first, so we can split "<family>-<style>".
-STYLES="bolditalic blackitalic bold black italic light medium semibold thin regular"
+# Known style tokens, so we can split "<family>-<style>". LONGEST FIRST matters:
+# "extrabolditalic" must not be matched as "italic", and "semibold" not as "bold".
+# Mirrors WEIGHT_MAP in scripts/font-metadata-patcher.py (× optional italic).
+STYLES="extralightitalic ultralightitalic extrabolditalic ultrabolditalic \
+semibolditalic demibolditalic hairlineitalic mediumitalic normalitalic \
+regularitalic lightitalic blackitalic heavyitalic bolditalic thinitalic \
+bookitalic extralight ultralight extrabold ultrabold hairline semibold \
+demibold regular italic medium normal light black heavy bold book thin"
 
 shopt -s nullglob
 fonts=("$INPUT_DIR"/*.ttf)
