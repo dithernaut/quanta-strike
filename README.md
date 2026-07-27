@@ -93,7 +93,11 @@ You need [FontForge](https://fontforge.org/) with Python bindings
 ./build.sh --defaults       # CI / release defaults (-y works too)
 ./build.sh -y --nerd-fonts  # add Nerd Font icons (mono only)
 ./build.sh -y --spacing 2   # force a 2px proportional gap
+./build.sh --verbose        # full per-step output instead of the progress bar
 ```
+
+The build shows a single progress line naming the strike it is on, and prints a
+step's output only if that step fails. `--verbose` (`-v`) shows everything.
 
 The release number lives in [`VERSION`](VERSION). A successful build writes the
 bump back.

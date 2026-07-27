@@ -222,7 +222,25 @@ keep, Nerd Fonts = no (opt-in), console PSF = no (opt-in). Prompts still print t
 assumed answer so the log stays auditable. Any new prompt must honour `$NON_INTERACTIVE`
 or it will hang a non-interactive build.
 
+## Build output
+Quiet by default: each sub-command's stdout/stderr is captured to a temp log and the
+terminal shows one animated line — braille spinner, progress bar, and the strike being
+worked on — plus phase headers, warnings and the final summary. A step that FAILS dumps
+its captured output, so nothing is lost when it matters. `--verbose` / `-v` runs every
+step inline with output passed straight through (the pre-existing behaviour). Piped
+output (not a TTY) never animates: one plain line per step instead, so CI logs stay
+readable. New pipeline steps should go through `run_step "<label>" <cmd>...` so they
+tick the bar and get the capture-on-failure treatment for free; bump the budget in
+main()'s "Budget the progress bar" block when you add one.
+
+The prompts are grouped into five numbered sections — Strikes, Release, Typography,
+Outputs, Review — and Review reprints every answer on one screen before the slow part
+starts. Use `ask_yes_no`, `ask_choice` and `prompt_line` so new questions inherit the
+alignment and the `$NON_INTERACTIVE` handling.
+
 CLI flags that pin choices (honoured in `--defaults` runs too):
+- **`--verbose`** (alias `-v`): print every sub-command's output as it runs instead of
+  the progress line. Use it when a build misbehaves and you want the full trace.
 - **`--nerd-fonts`** (alias `--nerd`): opt IN to Nerd Font generation (mono variant
   only, the slow step). Off unless given, so a plain `--defaults` build skips it.
 - **`--psf`** (alias `--psf-fonts`): opt IN to console PSF fonts (Linux framebuffer /
@@ -240,7 +258,7 @@ everywhere, with the mono Nerd variants and no PSF. Plain `./build.sh -y` lets e
 strike's JSON (or auto) decide and skips Nerd + PSF.
 
 ## Sizing choice in build.sh
-Always anchors pixel-perfect first, then prompts `Scale factor on top [default 1]`.
+Always anchors pixel-perfect first, then prompts `Scale factor [enter = 1, pixel-perfect]`.
 `1` = leave pixel-perfect (crisp). `>1` = uniform bigger (soft, pixel still identical).
 
 ## Using the fonts (CSS)

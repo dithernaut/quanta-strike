@@ -159,10 +159,15 @@ bar_draw() {
 
     # Kept free of escape codes so it can be truncated by character count.
     local text="$PROGRESS_LABEL"
-    [ -n "$PROGRESS_PHASE" ] && text="$PROGRESS_PHASE · $PROGRESS_LABEL"
+    if [ -n "$PROGRESS_PHASE" ] && [ -n "$PROGRESS_LABEL" ]; then
+        text="$PROGRESS_PHASE · $PROGRESS_LABEL"
+    elif [ -n "$PROGRESS_PHASE" ]; then
+        text="$PROGRESS_PHASE"
+    fi
 
-    # Never let the line wrap — a wrapped line breaks the \r redraw.
-    local avail=$(( TERM_COLS - BAR_WIDTH - 12 ))
+    # Never let the line wrap — a wrapped line breaks the \r redraw. The strike
+    # name is the point of this line, so it gets whatever room is left.
+    local avail=$(( TERM_COLS - BAR_WIDTH - 10 ))
     [ "$avail" -lt 12 ] && avail=12
     if [ "${#text}" -gt "$avail" ]; then
         text="${text:0:$((avail - 1))}…"
@@ -1363,8 +1368,9 @@ build_variant() {
     STAGE_DIR="$stage"
     TTF_GROUP_DIR="$group"
 
-    # Short name for the progress line — the full label is too long for it.
-    local phase="proportional"
+    # Short tag for the progress line — the full label is far too long for it,
+    # and the strike name matters more than restating the variant.
+    local phase="prop"
     [ -n "$suffix" ] && phase="mono"
     PROGRESS_PHASE="$phase"
 
