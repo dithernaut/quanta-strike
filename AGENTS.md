@@ -173,6 +173,29 @@ read, so the per-step scripts below are variant-agnostic.
   - Metrics are computed **per family, not per file**: all weights of a strike are
     anchored to the UNION of their ink, so they come out with identical metrics. Derived
     per file, bold's deeper descenders would move the baseline the moment text is bolded.
+  - Also snaps the **underline and strikeout to whole pixels** (`decorate()`): stroke is
+    `max(1, (N+8)//16)` px, underline top `underline_gap()` below the baseline, strikeout
+    bottom on the half x-height. Both position fields hold the TOP of the stroke on disk, but
+    FontForge's `upos` is the stroke's CENTER and it writes `top = upos + uwidth/2` —
+    `os2_strikeypos` is written through verbatim. Left unset, FontForge's own defaults are
+    percentages of the em and land on fractional pixels (0.797px at the 16).
+  - `underline_gap()` = `2*stroke - 1`, clamped to `descent - stroke`. The air grows with
+    the stroke (1px under the 1px rule, 3px under the 2px rule on the 32) so the underline
+    hangs off the baseline by the same proportion at every strike. The clamp keeps the
+    whole rule inside the em: with the emitted `line-height: 1` the first row below the em
+    is the NEXT line's, and a stroke there lands on its ascenders — measured on the 6,
+    where forcing the gap to 1 puts the rule on row 7, the next line's top glyph row,
+    leaving row 6 empty under its own text. The 6's 1px descender leaves no room, so its
+    gap clamps to 0 and the stroke shares the descender row. Gaps: 0 on the 6, 1 on the
+    10–20, 3 on the 32 (whose 5px descender holds 3 + 2 exactly).
+  - **Chromium ignores `OS/2 yStrikeoutPosition`** — measured: a font asking for 11px
+    above the baseline still drew at 5px, because Chromium centres line-through on half
+    the x-height and computes its own. Firefox honours the field. So the strikeout
+    metrics here land for Firefox and for apps that read the font (Word, InDesign, PDF),
+    and in Chromium a strike whose x-height is an EVEN number of pixels (the 6, 12, 14)
+    gets a half-pixel line. Nothing in CSS can move a line-through; the only lever is
+    stroke thickness parity, which `text-decoration-thickness` shares with the underline.
+    Deliberately not traded away — a uniform 1px underline is worth more.
 - **scripts/pixel-scale.py** — OPTIONAL uniform scale-up applied ON TOP of anchor (default
   factor 1 = no-op). Shrinks every em by one shared factor so the family renders bigger
   while the pixel stays identical across strikes. Non-integer factor → slightly soft
@@ -230,6 +253,30 @@ Always anchors pixel-perfect first, then prompts `Scale factor on top [default 1
   `font-family`. Bind them in one class; never expose size alone.
 - Fonts ship with tight ink-based line metrics (line-height ~1.06–1.33, larger on small
   strikes). Set `line-height` explicitly for uniform leading.
+- **`text-decoration-thickness` does NOT inherit** (CSS Text Decoration 4);
+  `text-underline-offset` does. Setting the stroke on a container therefore never reaches
+  the `<a>`, `<u>`, `<s>` or `<del>` that actually draws the line — it computes `auto` and
+  each engine picks its own (a hairline in WebKit, differently in Gecko and Blink). This
+  looks exactly like the font being wrong and is not. generate-css.py emits
+  `:where(<every strike class>) * { text-decoration-thickness: inherit; }`, zero
+  specificity so a nested `.qs-N` still wins and passes its own stroke down. **Any new
+  rule that sets the stroke needs the matching inherit rule**, or decorated children
+  silently fall back.
+- **Underline / strikethrough**: the fonts carry whole-pixel metrics, but only Chromium
+  and WebKit read them — Firefox draws its own line and ignores `from-font` on both
+  `text-decoration-thickness` and `text-underline-offset` (measured: its `auto` and
+  `from-font` renders are identical). So the CSS always states the stroke as a LENGTH,
+  which all three engines honour, in whatever unit that mode's `font-size` uses: **px** in
+  the locked `.qs-N` classes (px font-size, so `html { font-size: … }` moves neither), and
+  **rem** in the scale presets (`0.0625rem` = 1/16rem = one source pixel, so at
+  `html { font-size: 200% }` the text doubles and the rule doubles with it — verified 2px
+  stroke at +2px in both engines). `text-underline-offset` is the gap from the baseline to
+  the TOP of the stroke, matching post `underlinePosition`. generate-css.py READS both
+  numbers out of the built TTFs (`load_decoration`, `--ttf-dir`, defaulting to a `ttf/`
+  folder beside the woff2 tree) instead of re-deriving them: the gap depends on each
+  strike's descender depth, which is art, not arithmetic. WOFF2 table data is
+  brotli-compressed, hence the TTFs. Strikethrough has NO CSS position control and
+  Chromium ignores the font's — see the anchor-em notes above.
 
 ## Pixel-sheet source format (`src/*/*.json`)
 The full field-by-field reference (every key png-to-ttf reads, plus a minimal example) is
