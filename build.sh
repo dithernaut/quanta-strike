@@ -5,15 +5,17 @@
 
 set -e  # Exit on any error
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
-DIM='\033[2m'
-NC='\033[0m' # No Color
+# Colors for output. Real escape characters ($'...'), not backslash sequences, so
+# they can be dropped into a printf format as-is — the progress bar composes its
+# line with printf rather than echo -e.
+RED=$'\033[0;31m'
+GREEN=$'\033[0;32m'
+YELLOW=$'\033[1;33m'
+BLUE=$'\033[0;34m'
+CYAN=$'\033[0;36m'
+BOLD=$'\033[1m'
+DIM=$'\033[2m'
+NC=$'\033[0m' # No Color
 
 # Run from the repo root regardless of where the user invoked us, so the
 # relative paths below resolve. Pipeline scripts live in scripts/.
@@ -42,8 +44,9 @@ LICENSE_FILE="./OFL.txt"
 # Lives under build/ — wiped at the start of every run, and already gitignored.
 STAGE_DIR="$BUILD_DIR/tmp/src"
 
-# Global variable to store metadata options
-METADATA_OPTIONS=""
+# Metadata patcher flags, as an array — spliced into the patcher's argument list
+# verbatim, so values with spaces (the licence text) survive intact.
+METADATA_OPTS=()
 
 # The build always emits TWO variants per strike: a monospace one (PFM type
 # always "monospace") and a proportional one. PROP_TYPE is the PFM family type
@@ -91,25 +94,195 @@ PSF_SCALE_SET=false     # true when --psf-scale already pinned it
 # removed at the end. --keep-tmp leaves it in place for inspecting a bad build.
 KEEP_TMP=false
 
+# ─── Output mode ─────────────────────────────────────────────────────────────
+# Quiet (the default): every sub-command's chatter is captured to a log and
+# replaced by a single animated line — braille spinner, progress bar, and the
+# strike currently being worked on. Only phase headers, warnings, errors and the
+# final summary are printed for real; a step that FAILS dumps its captured
+# output, so nothing is lost when it matters.
+# --verbose restores the old firehose, running each step inline.
+# A non-TTY stdout (pipe, CI log) never animates — steps print as plain lines.
+VERBOSE=false
+IS_TTY=false
+[ -t 1 ] && IS_TTY=true
+
+# Where a quiet-mode step's stdout+stderr is parked until we know whether it
+# failed. One file, reused per step; removed by the EXIT trap.
+STEP_LOG="${TMPDIR:-/tmp}/quanta-strike-build.$$.log"
+
+TERM_COLS=$(tput cols 2>/dev/null || echo 80)
+[ -n "$TERM_COLS" ] || TERM_COLS=80
+
+SPINNER=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
+SPINNER_I=0
+BAR_WIDTH=22
+
+# Progress is counted in steps — one per run_step call. main() precomputes the
+# total from the selected strikes and options (see plan_progress) so the bar is
+# a real fraction of the build rather than a guess.
+PROGRESS_TOTAL=0
+PROGRESS_DONE=0
+PROGRESS_PHASE=""
+PROGRESS_LABEL=""
+BAR_ON_SCREEN=false
+
+bar_enabled() {
+    [ "$VERBOSE" != true ] && [ "$IS_TTY" = true ] && [ "$PROGRESS_TOTAL" -gt 0 ]
+}
+
+# Wipe the bar off the current line so a permanent message can take it. Every
+# print_* helper clears, prints, then redraws — the bar stays pinned at the
+# bottom while the real log scrolls above it.
+bar_clear() {
+    if [ "$BAR_ON_SCREEN" = true ]; then
+        printf '\r\033[2K'
+        BAR_ON_SCREEN=false
+    fi
+}
+
+bar_draw() {
+    bar_enabled || return 0
+
+    # Clamped: a miscounted budget must never overflow the bar or print >100%.
+    local ticks=$PROGRESS_DONE
+    [ "$ticks" -gt "$PROGRESS_TOTAL" ] && ticks=$PROGRESS_TOTAL
+    local pct=$(( ticks * 100 / PROGRESS_TOTAL ))
+    local filled=$(( ticks * BAR_WIDTH / PROGRESS_TOTAL ))
+
+    local fill="" empty="" i
+    for ((i = 0; i < BAR_WIDTH; i++)); do
+        # Braces are required: bash 3.2 reads the bytes of a multibyte literal
+        # that directly follows an unbraced $var as part of the variable name,
+        # and the append silently yields nothing.
+        if [ "$i" -lt "$filled" ]; then fill="${fill}█"; else empty="${empty}░"; fi
+    done
+
+    # Kept free of escape codes so it can be truncated by character count.
+    local text="$PROGRESS_LABEL"
+    [ -n "$PROGRESS_PHASE" ] && text="$PROGRESS_PHASE · $PROGRESS_LABEL"
+
+    # Never let the line wrap — a wrapped line breaks the \r redraw.
+    local avail=$(( TERM_COLS - BAR_WIDTH - 12 ))
+    [ "$avail" -lt 12 ] && avail=12
+    if [ "${#text}" -gt "$avail" ]; then
+        text="${text:0:$((avail - 1))}…"
+    fi
+
+    printf '\r\033[2K%s %s%s%s%s%s %3d%%  %s' \
+        "${CYAN}${SPINNER[$SPINNER_I]}${NC}" \
+        "$GREEN" "$fill" "$DIM" "$empty" "$NC" \
+        "$pct" "$text"
+
+    SPINNER_I=$(( (SPINNER_I + 1) % ${#SPINNER[@]} ))
+    BAR_ON_SCREEN=true
+}
+
+# Restore the terminal whatever way we leave — multi_select hides the cursor and
+# the bar owns a line, both of which would otherwise survive a Ctrl-C.
+cleanup_ui() {
+    bar_clear
+    tput cnorm 2>/dev/null || true
+    rm -f "$STEP_LOG"
+}
+trap cleanup_ui EXIT
+
 # Function to print colored output
 print_info() {
-    echo -e "${BLUE}ℹ${NC} $1"
+    bar_clear; echo -e "${BLUE}ℹ${NC} $1"; bar_draw
 }
 
 print_success() {
-    echo -e "${GREEN}✓${NC} $1"
+    bar_clear; echo -e "${GREEN}✓${NC} $1"; bar_draw
 }
 
 print_warning() {
-    echo -e "${YELLOW}⚠${NC} $1"
+    bar_clear; echo -e "${YELLOW}⚠${NC} $1"; bar_draw
 }
 
 print_error() {
-    echo -e "${RED}✗${NC} $1"
+    bar_clear; echo -e "${RED}✗${NC} $1"; bar_draw
 }
 
 print_header() {
-    echo -e "${CYAN}▶${NC} $1"
+    bar_clear; echo -e "${CYAN}▶${NC} $1"; bar_draw
+}
+
+# Bar-safe blank line / raw line, for the spots that used a bare echo.
+print_line() {
+    bar_clear; echo -e "$1"; bar_draw
+}
+
+# Run one build step with its output captured, ticking the progress bar.
+# Quiet mode animates the bar and stays silent unless the step fails, in which
+# case the captured output is dumped. Verbose runs it inline, unfiltered.
+# Usage: run_step "<label>" <command> [args...]
+run_step() {
+    local label="$1"; shift
+    PROGRESS_LABEL="$label"
+    local rc=0 out_line
+
+    if [ "$VERBOSE" = true ]; then
+        print_info "$label"
+        "$@" || rc=$?
+        PROGRESS_DONE=$((PROGRESS_DONE + 1))
+        if [ "$rc" -ne 0 ]; then
+            print_error "$label — failed"
+        fi
+        return "$rc"
+    fi
+
+    : > "$STEP_LOG"
+
+    if [ "$IS_TTY" = true ]; then
+        # Background it so the spinner can animate while it works. set -e does
+        # not fire on a background job, and `wait` is guarded by ||.
+        "$@" >"$STEP_LOG" 2>&1 &
+        local pid=$!
+        while kill -0 "$pid" 2>/dev/null; do
+            bar_draw
+            sleep 0.08
+        done
+        wait "$pid" || rc=$?
+    else
+        "$@" >"$STEP_LOG" 2>&1 || rc=$?
+        echo "  · $label"
+    fi
+
+    PROGRESS_DONE=$((PROGRESS_DONE + 1))
+    bar_draw
+
+    if [ "$rc" -ne 0 ]; then
+        bar_clear
+        print_error "$label"
+        echo -e "${DIM}┈┈┈ captured output ┈┈┈${NC}"
+        while IFS= read -r out_line; do
+            echo "  $out_line"
+        done < "$STEP_LOG"
+        echo -e "${DIM}┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈${NC}"
+    fi
+    return "$rc"
+}
+
+# ─── Prompts ─────────────────────────────────────────────────────────────────
+# The questions are grouped into numbered sections so it's obvious at a glance
+# which part of the build each one is steering.
+RULE=""
+for ((_i = 0; _i < 60; _i++)); do RULE="${RULE}─"; done
+unset _i
+
+SECTION_N=0
+SECTION_TOTAL=5
+
+section() {
+    local title="$1" hint="$2"
+    SECTION_N=$((SECTION_N + 1))
+    echo
+    if [ -n "$hint" ]; then
+        echo -e "${CYAN}${BOLD}$SECTION_N/$SECTION_TOTAL${NC}  ${BOLD}$title${NC}  ${DIM}$hint${NC}"
+    else
+        echo -e "${CYAN}${BOLD}$SECTION_N/$SECTION_TOTAL${NC}  ${BOLD}$title${NC}"
+    fi
+    echo -e "${DIM}${RULE}${NC}"
 }
 
 # Read a line into the named variable, or leave it empty (the "enter to skip"
@@ -124,17 +297,26 @@ read_or_skip() {
     fi
 }
 
+# One question, one dim hint, hints aligned down the column. Padded by CHARACTER
+# count rather than with printf's %-46s, which pads by bytes and so mis-aligns
+# any question containing a multibyte character (→, ×, …).
+PROMPT_COL=46
+prompt_line() {
+    local question="$1" hint="$2"
+    local pad=$(( PROMPT_COL - ${#question} ))
+    [ "$pad" -lt 1 ] && pad=1
+    printf '  %s?%s %s%*s %s%s%s ' "$YELLOW" "$NC" "$question" "$pad" "" "$DIM" "$hint" "$NC"
+}
+
 # Function to ask yes/no question
 ask_yes_no() {
     local question="$1"
     local default="${2:-n}"
     local response
+    local hint="[y/N]"
 
-    if [ "$default" = "y" ]; then
-        printf "${YELLOW}?${NC} %s [Y/n]: " "$question"
-    else
-        printf "${YELLOW}?${NC} %s [y/N]: " "$question"
-    fi
+    [ "$default" = "y" ] && hint="[Y/n]"
+    prompt_line "$question" "$hint"
 
     if [ "$NON_INTERACTIVE" = true ]; then
         echo -e "${DIM}$default${NC}"
@@ -148,6 +330,47 @@ ask_yes_no() {
         [yY]|[yY][eE][sS]) return 0 ;;
         *) return 1 ;;
     esac
+}
+
+# Numbered single-choice prompt, so every "pick one of these" question in the
+# build looks and behaves the same. Options are "value|label|hint" triples; the
+# chosen value lands in CHOICE.
+# Usage: ask_choice <default_value> <question> "val|label|hint" ...
+CHOICE=""
+ask_choice() {
+    local default="$1" question="$2"; shift 2
+    local opts=("$@")
+    local count=${#opts[@]}
+    local i val label hint
+    local default_n=1 default_label="$default"
+
+    echo -e "  ${BOLD}$question${NC}"
+    for i in "${!opts[@]}"; do
+        IFS='|' read -r val label hint <<< "${opts[$i]}"
+        if [ "$val" = "$default" ]; then
+            default_n=$((i + 1))
+            default_label="$label"
+        fi
+        printf '     %s%d%s  %-12s %s%s%s\n' "$CYAN" "$((i + 1))" "$NC" "$label" "$DIM" "$hint" "$NC"
+    done
+
+    prompt_line "choose" "[1-$count, enter = $default_label]"
+
+    local ans=""
+    if [ "$NON_INTERACTIVE" = true ]; then
+        echo -e "${DIM}$default_n${NC}"
+        ans="$default_n"
+    else
+        read -r ans
+        ans="${ans:-$default_n}"
+    fi
+
+    if [[ "$ans" =~ ^[0-9]+$ ]] && [ "$ans" -ge 1 ] && [ "$ans" -le "$count" ]; then
+        IFS='|' read -r val label hint <<< "${opts[$((ans - 1))]}"
+        CHOICE="$val"
+    else
+        CHOICE="$default"
+    fi
 }
 
 # Multi-select menu with space to toggle, enter to confirm
@@ -370,12 +593,11 @@ run_png_to_ttf() {
     local suffix="$1"; shift
     local families=("$@")
 
-    print_info "Building source TTFs from PNG + JSON → ${DIM}$STAGE_DIR${NC}"
-
     rm -rf "$STAGE_DIR"
 
     local built=0
     local reused=0
+    local dedicated=()
     local family_name style styles
     for family_name in "${families[@]}"; do
         styles=()
@@ -404,13 +626,16 @@ run_png_to_ttf() {
             mkdir -p "$stage"
 
             if [ -f "$SCRIPTS_DIR/png-to-ttf.py" ] && [ -n "$src_name" ] && [ -f "$json" ] && [ -f "$png" ]; then
-                if python3 "$SCRIPTS_DIR/png-to-ttf.py" $prop_flag "$json" "$stage"; then
+                # $prop_flag splits into separate words on purpose (it is
+                # "--proportional [--prop-gap N]"), before run_step sees them.
+                # shellcheck disable=SC2086
+                if run_step "png→ttf · $family_name/$style" \
+                        python3 "$SCRIPTS_DIR/png-to-ttf.py" $prop_flag "$json" "$stage"; then
                     if [ "$src_name" != "$family_name" ]; then
-                        print_info "  ${DIM}$family_name/$style: using $src_name sheet${NC}"
+                        dedicated+=("$family_name/$style")
                     fi
                     built=$((built + 1))
                 else
-                    print_error "png-to-ttf failed for $family_name/$style ($src_name)"
                     return 1
                 fi
             elif [ -f "$prebuilt" ]; then
@@ -432,6 +657,13 @@ run_png_to_ttf() {
     if [ $built -gt 0 ]; then
         print_success "Built $built source TTF(s) from PNG + JSON"
     fi
+    if [ ${#dedicated[@]} -gt 0 ]; then
+        # For the plain variant a non-default stem just means the sheet is named
+        # after its style; for mono it means a hand-drawn mono sheet exists.
+        local sheet_kind="style-specific"
+        [ -n "$suffix" ] && sheet_kind="${suffix#-}"
+        print_line "  ${DIM}$sheet_kind sheets: ${dedicated[*]}${NC}"
+    fi
     if [ $reused -gt 0 ]; then
         print_success "Reused $reused prebuilt TTF(s)"
     fi
@@ -447,8 +679,6 @@ run_copy_license() {
         return 0
     fi
 
-    print_info "Copying ${BOLD}$LICENSE_FILE${NC} next to the built fonts..."
-
     local copied=0
     local dir f has
     while IFS= read -r dir; do
@@ -463,7 +693,9 @@ run_copy_license() {
 
         cp "$LICENSE_FILE" "$dir/"
         copied=$((copied + 1))
-        echo -e "  ${DIM}$dir/$(basename "$LICENSE_FILE")${NC}"
+        if [ "$VERBOSE" = true ]; then
+            print_line "  ${DIM}$dir/$(basename "$LICENSE_FILE")${NC}"
+        fi
     done < <(find "$BUILD_DIR" -mindepth 1 -type d ! -path "$BUILD_DIR/tmp*" 2>/dev/null)
 
     if [ $copied -eq 0 ]; then
@@ -531,10 +763,8 @@ choose_psf_charset() {
         return $?
     fi
 
-    echo
-    print_header "Console PSF fonts"
-    print_info "≤256-glyph .psfu.gz for Linux/Raspberry Pi consoles (setfont)."
-    print_info "${DIM}Opt-in. The main release zip skips these. Local/clone builds only.${NC}"
+    echo -e "  ${DIM}≤256-glyph .psfu.gz for Linux/Raspberry Pi consoles (setfont).${NC}"
+    echo -e "  ${DIM}Opt-in — the release zip skips these; local/clone builds only.${NC}"
 
     if [ "$forced" != true ]; then
         if ! ask_yes_no "Build console PSF fonts?" "n"; then
@@ -542,7 +772,7 @@ choose_psf_charset() {
             return 0
         fi
     else
-        print_info "Console PSF: enabled via --psf / --charset / --psf-scale."
+        echo -e "  ${DIM}enabled via --psf / --charset / --psf-scale${NC}"
     fi
 
     local choices=()
@@ -572,25 +802,27 @@ choose_psf_charset() {
         return $?
     fi
 
-    # Interactive: numbered list + free-path entry.
+    # Interactive: numbered list + free-path entry. Kept hand-rolled rather than
+    # using ask_choice because the options are discovered at runtime and a path
+    # typed in full is also a valid answer.
     local i
     if [ ${#choices[@]} -gt 0 ]; then
-        echo -e "  ${DIM}Pick a charset, or type a path to another JSON:${NC}"
+        echo -e "  ${BOLD}Charset${NC} ${DIM}— or type a path to another JSON${NC}"
         for i in "${!choices[@]}"; do
             local label="${choices[$i]}"
             local tag=""
-            [ "$label" = "$DEFAULT_CHARSET_FILE" ] && tag=" ${DIM}(default)${NC}"
-            echo -e "    $((i + 1))) ${BOLD}$label${NC}$tag"
+            [ "$label" = "$DEFAULT_CHARSET_FILE" ] && tag="  ${DIM}(default)${NC}"
+            echo -e "     ${CYAN}$((i + 1))${NC}  $label$tag"
         done
     else
-        echo -e "  ${DIM}No console-charset*.json found. Type a path to a charset JSON:${NC}"
+        echo -e "  ${DIM}No console-charset*.json found — type a path to a charset JSON.${NC}"
     fi
 
     local default_ans=1
     if [ ${#choices[@]} -eq 0 ]; then
         default_ans=""
     fi
-    printf "${YELLOW}?${NC} Charset [default %s]: " "${default_ans:-path}"
+    prompt_line "choose" "[enter = ${default_ans:-a path}]"
     local ans=""
     read -r ans
     ans="${ans:-$default_ans}"
@@ -608,7 +840,6 @@ choose_psf_charset() {
         print_error "Charset not found: $PSF_CHARSET"
         return 1
     fi
-    print_info "Console PSF charset: ${BOLD}$PSF_CHARSET${NC}"
     choose_psf_scale
     return $?
 }
@@ -625,13 +856,13 @@ choose_psf_scale() {
             print_error "PSF scale must be an integer ≥ 1 (got '$PSF_SCALE')"
             return 1
         fi
-        print_info "Console PSF scale: ${BOLD}×$PSF_SCALE${NC} (--psf-scale)."
+        echo -e "  ${DIM}PSF scale ×$PSF_SCALE (--psf-scale)${NC}"
         return 0
     fi
 
-    print_info "PSF scale is nearest-neighbor only (1 = native, 2 = double, …)."
-    print_info "${DIM}Separate from the TTF 'Scale factor on top' prompt.${NC}"
-    printf "${YELLOW}?${NC} PSF scale [default 1]: "
+    echo -e "  ${DIM}PSF scale is nearest-neighbor (1 = native, 2 = double, …), and is${NC}"
+    echo -e "  ${DIM}separate from the TTF scale factor asked for under Typography.${NC}"
+    prompt_line "PSF scale" "[enter = 1]"
     local ans=""
     if [ "$NON_INTERACTIVE" = true ]; then
         echo -e "${DIM}1${NC}"
@@ -645,9 +876,6 @@ choose_psf_scale() {
         return 1
     fi
     PSF_SCALE="$ans"
-    if [ "$PSF_SCALE" != "1" ]; then
-        print_info "Console PSF scale: ${BOLD}×$PSF_SCALE${NC}"
-    fi
     return 0
 }
 
@@ -675,10 +903,11 @@ run_png_to_psf() {
     [ -n "$charset_suffix" ] && suffix_flag="--suffix $charset_suffix"
     scale_flag="--scale $PSF_SCALE"
 
-    print_info "Building console PSF fonts → ${DIM}$PSF_DIR${NC}"
-    print_info "  charset: ${DIM}$PSF_CHARSET${NC}"
-    [ -n "$charset_suffix" ] && print_info "  output suffix: ${DIM}-${charset_suffix}${NC}"
-    [ "$PSF_SCALE" != "1" ] && print_info "  scale: ${DIM}×$PSF_SCALE${NC}"
+    local psf_note="$PSF_CHARSET"
+    [ -n "$charset_suffix" ] && psf_note="$psf_note, suffix -$charset_suffix"
+    [ "$PSF_SCALE" != "1" ] && psf_note="$psf_note, ×$PSF_SCALE"
+    print_header "Console PSF ${DIM}($psf_note) → $PSF_DIR${NC}"
+    PROGRESS_PHASE="psf"
 
     rm -rf "$PSF_DIR"
     mkdir -p "$PSF_DIR"
@@ -700,11 +929,11 @@ run_png_to_psf() {
             fi
             json="$dir/$src_name.json"
             # shellcheck disable=SC2086
-            if python3 "$SCRIPTS_DIR/png-to-psf.py" --charset "$PSF_CHARSET" \
+            if run_step "psf · $family_name/$style" \
+                    python3 "$SCRIPTS_DIR/png-to-psf.py" --charset "$PSF_CHARSET" \
                     $suffix_flag $scale_flag "$json" "$PSF_DIR"; then
                 built=$((built + 1))
             else
-                print_error "png-to-psf failed for $family_name/$style ($src_name)"
                 return 1
             fi
         done
@@ -718,37 +947,24 @@ run_png_to_psf() {
     return 0
 }
 
-# Function to run metadata patcher
+# Function to run metadata patcher. Extra patcher flags come in as real
+# arguments (not a string to eval), so values containing spaces — the licence
+# text, mostly — survive without a quoting round-trip.
+# Usage: run_metadata_patcher <family> [patcher flags...]
 run_metadata_patcher() {
-    local family_name="$1"
-    local extra_args="$2"
-
-    print_info "Running metadata patcher for ${BOLD}$family_name${NC}..."
+    local family_name="$1"; shift
 
     # Reads the staged TTF that scripts/png-to-ttf.py just built, not src/.
-    local cmd="python3 \"$SCRIPTS_DIR/font-metadata-patcher.py\" --src '$STAGE_DIR' --family '$family_name' --output '$TTF_GROUP_DIR' --flat"
-
-    if [ -n "$extra_args" ]; then
-        cmd="$cmd $extra_args"
-    fi
-
-    echo -e "  ${DIM}$cmd${NC}"
-
-    if eval "$cmd"; then
-        print_success "Metadata patcher completed for $family_name"
-        return 0
-    else
-        print_error "Metadata patcher failed for $family_name"
-        return 1
-    fi
+    run_step "metadata · $family_name" \
+        python3 "$SCRIPTS_DIR/font-metadata-patcher.py" \
+            --src "$STAGE_DIR" --family "$family_name" \
+            --output "$TTF_GROUP_DIR" --flat "$@"
 }
 
 # Function to run nerd fonts generator for selected families only
 # Usage: run_nerd_fonts_generator family1 family2 ...
 run_nerd_fonts_generator() {
     local families=("$@")
-
-    print_info "Running Nerd Fonts generator for: ${BOLD}${families[*]}${NC}"
 
     if [ ! -f "$SCRIPTS_DIR/generate-nerd-fonts" ]; then
         print_error "scripts/generate-nerd-fonts script not found"
@@ -765,90 +981,68 @@ run_nerd_fonts_generator() {
         return 1
     fi
 
+    # One invocation per family rather than one for the lot: this is by far the
+    # slowest step, and per-family calls let the progress bar name the strike
+    # being patched. The generator only ever adds to its output dir (it diffs
+    # the folder before/after each font), so splitting the run is safe.
     local nerd_dir="${TTF_GROUP_DIR}-nerd"
-    if "$SCRIPTS_DIR/generate-nerd-fonts" "$TTF_GROUP_DIR" "$nerd_dir" "${families[@]}"; then
-        print_success "Nerd Fonts generator completed"
-        return 0
-    else
-        print_error "Nerd Fonts generator failed"
-        return 1
-    fi
+    print_header "Nerd Fonts ${DIM}(mono only) → $nerd_dir${NC}"
+    PROGRESS_PHASE="nerd"
+
+    local fam
+    for fam in "${families[@]}"; do
+        if ! run_step "nerd · $fam" \
+                "$SCRIPTS_DIR/generate-nerd-fonts" "$TTF_GROUP_DIR" "$nerd_dir" "$fam"; then
+            return 1
+        fi
+    done
+
+    print_success "Patched ${#families[@]} strike(s) with Nerd Font icons"
+    return 0
 }
 
 # Function to run small caps generator
 run_small_caps() {
     local source="$1"
     local c2sc="$2"
+    local args=(--src "$TTF_GROUP_DIR" --source "$source")
 
-    print_info "Running small caps..."
-
-    local cmd="python3 \"$SCRIPTS_DIR/add-small-caps.py\" --src '$TTF_GROUP_DIR' --source '$source'"
     if [ "$c2sc" != "true" ]; then
-        cmd="$cmd --no-c2sc"
+        args+=(--no-c2sc)
     fi
 
-    if eval "$cmd"; then
-        print_success "Small caps completed"
-        return 0
-    else
-        print_error "Small caps failed"
-        return 1
-    fi
+    run_step "small caps ($source)" \
+        python3 "$SCRIPTS_DIR/add-small-caps.py" "${args[@]}"
 }
 
 # Function to run old-style figures generator
 run_old_style_figures() {
     local source="$1"
 
-    print_info "Running old-style figures..."
-
-    local cmd="python3 \"$SCRIPTS_DIR/add-old-style-figures.py\" --src '$TTF_GROUP_DIR' --source '$source'"
-
-    if eval "$cmd"; then
-        print_success "Old-style figures completed"
-        return 0
-    else
-        print_error "Old-style figures failed"
-        return 1
-    fi
+    run_step "old-style figures ($source)" \
+        python3 "$SCRIPTS_DIR/add-old-style-figures.py" \
+            --src "$TTF_GROUP_DIR" --source "$source"
 }
 
 # Function to convert the built TTFs to WOFF2 web fonts
 run_woff2() {
     local include_nerd="$1"
+    local args=("$TTF_DIR" "$BUILD_DIR/woff2")
+    local label="woff2"
 
-    print_info "Converting to WOFF2..."
-
-    local cmd="python3 \"$SCRIPTS_DIR/convert-woff2.py\" '$TTF_DIR' '$BUILD_DIR/woff2'"
     if [ "$include_nerd" = "true" ]; then
-        cmd="$cmd --include-nerd"
+        args+=(--include-nerd)
+        label="woff2 (with nerd)"
     fi
 
-    if eval "$cmd"; then
-        print_success "WOFF2 conversion completed"
-        return 0
-    else
-        print_error "WOFF2 conversion failed"
-        return 1
-    fi
+    run_step "$label" python3 "$SCRIPTS_DIR/convert-woff2.py" "${args[@]}"
 }
 
 # Emit the ready-to-use CSS next to the WOFF2 output. The classes it writes bind
 # each strike's family to its size, which is the one thing a consumer must not
 # get wrong. Needs the WOFF2 step to have run — it reads the built files.
 run_generate_css() {
-    print_info "Generating CSS for the web fonts..."
-
-    local cmd="python3 \"$SCRIPTS_DIR/generate-css.py\" '$BUILD_DIR/woff2'"
-    echo -e "  ${DIM}$cmd${NC}"
-
-    if eval "$cmd"; then
-        print_success "CSS generated"
-        return 0
-    else
-        print_error "CSS generation failed"
-        return 1
-    fi
+    run_step "css" python3 "$SCRIPTS_DIR/generate-css.py" "$BUILD_DIR/woff2"
 }
 
 # Verify the pixel-grid invariant (em == N*128, glyphs on the 128 grid) for one
@@ -864,15 +1058,12 @@ run_verify() {
         return 0
     fi
 
-    print_info "Verifying pixel-grid invariant ($label)..."
-
-    if python3 "$SCRIPTS_DIR/verify-pixel-grid.py" "${targets[@]}" 2>/dev/null; then
-        print_success "Pixel-grid invariant holds ($label)"
+    if run_step "verify pixel grid · $label" \
+            python3 "$SCRIPTS_DIR/verify-pixel-grid.py" "${targets[@]}"; then
         return 0
-    else
-        print_error "Pixel-grid invariant violated ($label) — a pixel would not be 1.0000px at native size"
-        return 1
     fi
+    print_error "Pixel-grid invariant violated ($label) — a pixel would not be 1.0000px at native size"
+    return 1
 }
 
 # Function to uniformly scale the whole family bigger while keeping the pixel
@@ -885,15 +1076,8 @@ run_pixel_scale() {
         return 1
     fi
 
-    print_info "Scaling family (pixel stays identical across strikes) at factor ${BOLD}$scale${NC}..."
-
-    if python3 "$SCRIPTS_DIR/pixel-scale.py" "$TTF_GROUP_DIR" --scale "$scale"; then
-        print_success "Pixel-scale completed"
-        return 0
-    else
-        print_error "Pixel-scale failed"
-        return 1
-    fi
+    run_step "scale ×$scale" \
+        python3 "$SCRIPTS_DIR/pixel-scale.py" "$TTF_GROUP_DIR" --scale "$scale"
 }
 
 # Function to anchor the em to N*128 (pixel-perfect) and set line metrics to the
@@ -904,57 +1088,24 @@ run_anchor_em() {
         return 1
     fi
 
-    print_info "Anchoring em to strike size (pixel-perfect) + line metrics for accent overshoot..."
-
-    if python3 "$SCRIPTS_DIR/anchor-em.py" "$TTF_GROUP_DIR"; then
-        print_success "Anchor-em completed"
-        return 0
-    else
-        print_error "Anchor-em failed"
-        return 1
-    fi
+    run_step "anchor em" python3 "$SCRIPTS_DIR/anchor-em.py" "$TTF_GROUP_DIR"
 }
 
-# Ask user to choose a small cap glyph source
+# Ask user to choose a small cap glyph source. Answer lands in CHOICE.
 ask_smcp_source() {
-    echo "  Small cap source:" >&2
-    echo "    1) phonetic  — Unicode small capitals (ᴀ ʙ ᴄ … ꞯ)" >&2
-    echo "    2) lowercase — use lowercase glyphs" >&2
-    echo "    3) capital   — use uppercase glyphs" >&2
-    printf "${YELLOW}?${NC} Source [1/2/3] (default: 1): " >&2
-    if [ "$NON_INTERACTIVE" = true ]; then
-        echo -e "${DIM}1 (phonetic)${NC}" >&2
-        echo "phonetic"
-        return 0
-    fi
-    read -r response
-    case "${response:-1}" in
-        2) echo "lowercase" ;;
-        3) echo "capital" ;;
-        *) echo "phonetic" ;;
-    esac
+    ask_choice phonetic "Small-cap source" \
+        "phonetic|phonetic|Unicode small capitals (ᴀ ʙ ᴄ … ꞯ)" \
+        "lowercase|lowercase|reuse the lowercase glyphs" \
+        "capital|capital|reuse the uppercase glyphs"
 }
 
-# Ask user to choose an old-style figure glyph source
+# Ask user to choose an old-style figure glyph source. Answer lands in CHOICE.
 ask_onum_source() {
-    echo "  Old-style figure source:" >&2
-    echo "    1) circled     — ⓿①②③④⑤⑥⑦⑧⑨" >&2
-    echo "    2) superscript — ⁰¹²³⁴⁵⁶⁷⁸⁹" >&2
-    echo "    3) subscript   — ₀₁₂₃₄₅₆₇₈₉" >&2
-    echo "    4) lining      — same as regular digits" >&2
-    printf "${YELLOW}?${NC} Source [1/2/3/4] (default: 1): " >&2
-    if [ "$NON_INTERACTIVE" = true ]; then
-        echo -e "${DIM}1 (circled)${NC}" >&2
-        echo "circled"
-        return 0
-    fi
-    read -r response
-    case "${response:-1}" in
-        2) echo "superscript" ;;
-        3) echo "subscript" ;;
-        4) echo "lining" ;;
-        *) echo "circled" ;;
-    esac
+    ask_choice circled "Old-style figure source" \
+        "circled|circled|⓿①②③④⑤⑥⑦⑧⑨" \
+        "superscript|superscript|⁰¹²³⁴⁵⁶⁷⁸⁹" \
+        "subscript|subscript|₀₁₂₃₄₅₆₇₈₉" \
+        "lining|lining|same as the regular digits"
 }
 
 # Get current version of a font family from build folder
@@ -990,6 +1141,23 @@ read_project_version() {
 # VERSION is left untouched even though the fonts were stamped correctly.
 RESOLVED_VERSION=""
 
+# Semver bump of one component. Missing parts count as 0, so a bare "1" bumps
+# sanely. Usage: bump_version "0.5.1" patch  → 0.5.2
+bump_version() {
+    local current="$1" kind="$2"
+    local major minor patch
+    IFS='.' read -r major minor patch <<< "$current"
+    major=${major:-0}
+    minor=${minor:-0}
+    patch=${patch:-0}
+    case "$kind" in
+        patch) echo "$major.$minor.$((patch + 1))" ;;
+        minor) echo "$major.$((minor + 1)).0" ;;
+        major) echo "$((major + 1)).0.0" ;;
+        *)     echo "$current" ;;
+    esac
+}
+
 write_project_version() {
     [ -z "$RESOLVED_VERSION" ] && return 0
     local current
@@ -1007,26 +1175,15 @@ resolve_project_version() {
     RESOLVED_VERSION=""
 
     case "$VERSION_STRATEGY" in
-        1|2|3)
+        patch|minor|major)
             if [ -z "$current_version" ]; then
                 return
             fi
-            local major minor patch
-            IFS='.' read -r major minor patch <<< "$current_version"
-            major=${major:-0}
-            minor=${minor:-0}
-            patch=${patch:-0}
-            case "$VERSION_STRATEGY" in
-                1) RESOLVED_VERSION="$major.$minor.$((patch + 1))" ;;
-                2) RESOLVED_VERSION="$major.$((minor + 1)).0" ;;
-                3) RESOLVED_VERSION="$((major + 1)).0.0" ;;
-            esac
-            print_info "Version: $current_version → $RESOLVED_VERSION"
+            RESOLVED_VERSION="$(bump_version "$current_version" "$VERSION_STRATEGY")"
             ;;
-        4)
+        custom)
             if [ -n "$VERSION_CUSTOM" ]; then
                 RESOLVED_VERSION="$VERSION_CUSTOM"
-                print_info "Version: $RESOLVED_VERSION (custom)"
             fi
             ;;
         *)
@@ -1038,32 +1195,28 @@ resolve_project_version() {
             fi
             ;;
     esac
-}
 
-# Emit the --version flag for the metadata patcher from RESOLVED_VERSION.
-# Safe to call inside $(...) — does not assign globals.
-# Usage: compute_version_flag "quanta-strike-16"  → prints --version '…' or empty
-compute_version_flag() {
-    local family="$1"
-    if [ -z "$RESOLVED_VERSION" ]; then
-        return
-    fi
-    echo "--version '$RESOLVED_VERSION'"
-    local current_version
-    current_version=$(read_project_version)
-    if [ -n "$current_version" ] && [ "$current_version" != "$RESOLVED_VERSION" ]; then
-        print_info "$family: $current_version → $RESOLVED_VERSION" >&2
+    VERSION_FLAG=()
+    if [ -n "$RESOLVED_VERSION" ]; then
+        VERSION_FLAG=(--version "$RESOLVED_VERSION")
     fi
 }
 
-# Global version strategy (set by get_metadata_options)
-VERSION_STRATEGY="5"
+# The metadata-patcher flag carrying RESOLVED_VERSION, as an array so it can be
+# spliced into the argument list (empty = nothing to stamp). Filled in by
+# resolve_project_version; read by build_variant.
+VERSION_FLAG=()
+
+# Global version strategy (set by ask_version): keep|patch|minor|major|custom
+VERSION_STRATEGY="keep"
 VERSION_CUSTOM=""
 
-# Turn scripts/default-metadata.json into patcher flags (shell-quoted, one line).
+# Turn scripts/default-metadata.json into patcher flags, ONE PER LINE — the
+# caller reads them straight into an array, so a value with spaces (the licence
+# text) needs no shell quoting and never goes through eval.
 metadata_flags_from_defaults() {
     python3 - "$DEFAULTS_FILE" <<'PY'
-import json, shlex, sys
+import json, sys
 
 cfg = json.load(open(sys.argv[1]))
 flags = []
@@ -1081,7 +1234,7 @@ for key, flag in (("extension", "--extension"),
     value = cfg.get(key)
     if value:
         flags += [flag, str(value)]
-print(" ".join(shlex.quote(f) for f in flags))
+print("\n".join(flags))
 PY
 }
 
@@ -1099,67 +1252,61 @@ for key in ("designer", "designerurl", "copyright", "license", "licenseurl",
     text = str(value)
     if len(text) > 64:
         text = text[:61] + "..."
-    print(f"    {key:12s} {text}")
+    print(f"  {key:12s} {text}")
 PY
 }
 
 # Ask for the version bump. Deliberately always asked, never taken from
 # scripts/default-metadata.json: it's a per-release decision, not a project constant.
-# Sets VERSION_STRATEGY / VERSION_CUSTOM; version computed per-family at build time.
+# Sets VERSION_STRATEGY / VERSION_CUSTOM; resolved by resolve_project_version.
 ask_version() {
-    echo
-    print_header "Version"
-    print_info "Current: ${BOLD}$(read_project_version)${NC} ${DIM}(from $VERSION_FILE)${NC}"
-    echo "    1) patch bump"
-    echo "    2) minor bump"
-    echo "    3) major bump"
-    echo "    4) custom (same for all)"
-    echo "    5) keep"
-    printf "${YELLOW}?${NC} Version [1/2/3/4/5] (default: 5): "
-    if [ "$NON_INTERACTIVE" = true ]; then
-        echo -e "${DIM}5 (keep)${NC}"
-        VERSION_STRATEGY="5"
-        VERSION_CUSTOM=""
-        return 0
-    fi
-    read -r ver_choice
-    VERSION_STRATEGY="${ver_choice:-5}"
+    local current
+    current=$(read_project_version)
+
+    ask_choice keep "Version ${DIM}— currently ${current:-unset}, from $VERSION_FILE${NC}" \
+        "keep|keep|stay on ${current:-1.0}" \
+        "patch|patch|→ $(bump_version "$current" patch)" \
+        "minor|minor|→ $(bump_version "$current" minor)" \
+        "major|major|→ $(bump_version "$current" major)" \
+        "custom|custom|type an exact version"
+    VERSION_STRATEGY="$CHOICE"
     VERSION_CUSTOM=""
-    if [ "$VERSION_STRATEGY" = "4" ]; then
-        printf "${YELLOW}?${NC} Version: "
-        read -r VERSION_CUSTOM
+
+    if [ "$VERSION_STRATEGY" = "custom" ]; then
+        prompt_line "exact version" ""
+        read_or_skip VERSION_CUSTOM
+        if [ -z "$VERSION_CUSTOM" ]; then
+            VERSION_STRATEGY="keep"
+        fi
     fi
 }
 
-# Gather metadata patcher options (stores in global METADATA_OPTIONS)
+# Gather metadata patcher options (stores in the global METADATA_OPTS array)
 get_metadata_options() {
-    local options=""
+    METADATA_OPTS=()
 
     # Defaults file present → take everything from it EXCEPT the version bump.
     if [ -f "$DEFAULTS_FILE" ]; then
-        echo
-        print_header "Metadata Options ${DIM}(from $DEFAULTS_FILE)${NC}"
-        METADATA_OPTIONS=" $(metadata_flags_from_defaults)"
+        local flag
+        while IFS= read -r flag; do
+            [ -n "$flag" ] && METADATA_OPTS+=("$flag")
+        done < <(metadata_flags_from_defaults)
+
         PROP_TYPE="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("prop-type") or "sans")' "$DEFAULTS_FILE")"
         # Only adopt a build-level spacing if the defaults file actually sets one;
         # otherwise leave it empty so each strike's JSON `spacing` key stays in charge.
         if [ "$PROP_GAP_SET" != true ]; then
             PROP_GAP="$(python3 -c 'import json,sys; c=json.load(open(sys.argv[1])); print(c["spacing"] if "spacing" in c else "")' "$DEFAULTS_FILE")"
         fi
-        metadata_summary_from_defaults
-        echo
-        print_info "Proportional variant PFM type: ${BOLD}$PROP_TYPE${NC} (mono variant is always monospace)."
-        print_info "Edit $DEFAULTS_FILE to change these (delete it to be asked instead)."
 
-        ask_version
+        echo -e "  ${DIM}from ${DEFAULTS_FILE#$SCRIPT_DIR/} — edit it to change these, delete it to be asked:${NC}"
+        metadata_summary_from_defaults
+        echo -e "  ${DIM}proportional PFM type is ${PROP_TYPE}; mono is always monospace${NC}"
         return 0
     fi
 
-    echo
-    print_header "Metadata Options"
-
     if ask_yes_no "Use lowercase font names?" "y"; then
-        options="$options --lowercase"
+        METADATA_OPTS+=(--lowercase)
     fi
 
     # The build always emits a monospace variant AND a proportional variant, so
@@ -1171,37 +1318,35 @@ get_metadata_options() {
         PROP_TYPE="sans"
     fi
 
-    ask_version
+    local extension designer_url license_url license_text
 
-    printf "${YELLOW}?${NC} Output extension (ttf/otf, enter to keep): "
+    prompt_line "Output extension" "[ttf/otf, enter = keep]"
     read_or_skip extension
     if [ -n "$extension" ]; then
-        options="$options --extension '$extension'"
+        METADATA_OPTS+=(--extension "$extension")
     fi
 
-    printf "${YELLOW}?${NC} Designer URL (enter to skip): "
+    prompt_line "Designer URL" "[enter = skip]"
     read_or_skip designer_url
     if [ -n "$designer_url" ]; then
-        options="$options --designerurl '$designer_url'"
+        METADATA_OPTS+=(--designerurl "$designer_url")
     fi
 
-    printf "${YELLOW}?${NC} License URL (enter to skip): "
+    prompt_line "License URL" "[enter = skip]"
     read_or_skip license_url
     if [ -n "$license_url" ]; then
-        options="$options --licenseurl '$license_url'"
+        METADATA_OPTS+=(--licenseurl "$license_url")
     fi
 
-    printf "${YELLOW}?${NC} License/copyright text (enter to skip): "
+    prompt_line "License/copyright text" "[enter = skip]"
     read_or_skip license_text
     if [ -n "$license_text" ]; then
-        options="$options --license '$license_text'"
+        METADATA_OPTS+=(--license "$license_text")
     fi
 
     if ask_yes_no "Enable debug logging?"; then
-        options="$options --debug"
+        METADATA_OPTS+=(--debug)
     fi
-
-    METADATA_OPTIONS="$options"
 }
 
 # Build one variant (mono or proportional) end-to-end into its own group dir:
@@ -1218,11 +1363,13 @@ build_variant() {
     STAGE_DIR="$stage"
     TTF_GROUP_DIR="$group"
 
+    # Short name for the progress line — the full label is too long for it.
+    local phase="proportional"
+    [ -n "$suffix" ] && phase="mono"
+    PROGRESS_PHASE="$phase"
+
     echo
-    echo "════════════════════════════════════════════════════════════════"
-    print_header "Variant: ${BOLD}$label${NC} → ${DIM}$group${NC}"
-    echo "════════════════════════════════════════════════════════════════"
-    echo
+    print_header "${BOLD}$label${NC} ${DIM}→ $group${NC}"
 
     # Staged/internal family names carry the suffix (mono → "-mono"); the
     # metadata patcher reads the family name from the staging folder.
@@ -1239,62 +1386,49 @@ build_variant() {
     # 2. Fail fast: the freshly staged strikes must sit on the pixel grid.
     local src_targets=()
     for f in "${stage_families[@]}"; do src_targets+=("$STAGE_DIR/$f"); done
-    echo
-    if ! run_verify "source · $label" "${src_targets[@]}"; then
+    if ! run_verify "source" "${src_targets[@]}"; then
         print_error "Fix the source strike(s) above before building — aborting."
         return 1
     fi
-    echo
 
     # 3. Metadata for each strike (into this variant's group dir). --type is
     #    appended last so it wins over anything the defaults might carry.
-    local i sfam version_flag
-    for i in "${!stage_families[@]}"; do
-        sfam="${stage_families[$i]}"
-        print_header "Metadata: $sfam"
-        echo
-        version_flag=$(compute_version_flag "$sfam")
-        if ! run_metadata_patcher "$sfam" "$METADATA_OPTIONS --type $pfm_type $version_flag"; then
+    local sfam
+    for sfam in "${stage_families[@]}"; do
+        if ! run_metadata_patcher "$sfam" \
+                "${METADATA_OPTS[@]}" --type "$pfm_type" "${VERSION_FLAG[@]}"; then
             return 1
         fi
-        echo
     done
+    print_success "Metadata patched (${#stage_families[@]} strikes)"
 
     # 4. Features on the base TTFs, then anchor + optional scale.
     if [ "$do_small_caps" = true ]; then
-        run_small_caps "$smcp_source" "$smcp_c2sc"
-        echo
+        if ! run_small_caps "$smcp_source" "$smcp_c2sc"; then return 1; fi
     fi
     if [ "$do_onum" = true ]; then
-        run_old_style_figures "$onum_source"
-        echo
+        if ! run_old_style_figures "$onum_source"; then return 1; fi
     fi
 
     if ! run_anchor_em; then return 1; fi
-    echo
     if [ "$scale_factor" != "1" ] && [ "$scale_factor" != "1.0" ]; then
         if ! run_pixel_scale "$scale_factor"; then return 1; fi
-        echo
     fi
 
     # 5. Gate: the built strikes must still hold the pixel-grid invariant.
-    if ! run_verify "build output · $label" "$TTF_GROUP_DIR"; then
+    if ! run_verify "build output" "$TTF_GROUP_DIR"; then
         print_error "Built $label fonts broke the pixel-grid invariant — aborting."
         return 1
     fi
-    echo
+    print_success "$label ready"
     return 0
 }
 
 # Main function
 main() {
-    echo -e "${CYAN}"
-    echo "╔══════════════════════════════════════════════════════════════╗"
-    echo "║                  Interactive Font Generator                  ║"
-    echo "║          Metadata Patcher + Nerd Fonts Generator             ║"
-    echo "║                       quanta-strike                         ║"
-    echo "╚══════════════════════════════════════════════════════════════╝"
-    echo -e "${NC}"
+    echo
+    echo -e "${CYAN}${BOLD}  quanta-strike${NC}${DIM} · font build${NC}"
+    echo -e "${DIM}  ${RULE}${NC}"
 
     # Check if source directory exists
     if [ ! -d "$SRC_DIR" ]; then
@@ -1319,7 +1453,8 @@ main() {
         exit 1
     fi
 
-    # ─── Step 1: Select font families ─────────────────────────────────
+    # ─── 1. Which strikes ─────────────────────────────────────────────
+    section "Strikes" "which sizes and weights to build"
     multi_select "Select font families to build" "${family_names[@]}"
     local selected_indices=("${MULTI_SELECT_RESULT[@]}")
 
@@ -1333,37 +1468,40 @@ main() {
     for idx in "${selected_indices[@]}"; do
         selected_families+=("${family_names[$idx]}")
     done
-    print_info "Selected: ${selected_families[*]}"
-    print_info "Each strike is built TWICE: a ${BOLD}proportional${NC} variant (quanta-strike-N) and a ${BOLD}mono${NC} variant (quanta-strike-N-mono)."
 
     # Every style folder under a strike is another weight of it. Listed here so a
     # mis-named folder (or a missing one) is obvious before the build starts.
+    # Doubles as the style count the progress total is derived from.
     local fam fam_styles
+    local style_count=0
     for fam in "${selected_families[@]}"; do
         fam_styles=$(discover_styles "$fam" | tr '\n' ' ')
-        print_info "  ${DIM}$fam weights: ${fam_styles% }${NC}"
+        fam_styles="${fam_styles% }"
+        echo -e "  ${DIM}$fam${NC}  ${DIM}·${NC} $fam_styles"
+        for _s in $fam_styles; do style_count=$((style_count + 1)); done
     done
+    echo -e "  ${DIM}each strike is built twice: proportional (quanta-strike-N) + mono (…-N-mono)${NC}"
 
     # NB: the actual source build (png-to-ttf) + source guard now happen once per
-    # variant inside build_variant (Step 4), since each variant trims widths
-    # differently. Here we only gather the shared options.
+    # variant inside build_variant, since each variant trims widths differently.
+    # Here we only gather the shared options.
 
-    # ─── Step 2: Configure metadata options ───────────────────────────
-    get_metadata_options
+    # ─── 2. Release ───────────────────────────────────────────────────
+    section "Release" "version + font metadata"
+    ask_version
     resolve_project_version
-    echo
-    print_info "Options:${DIM}$METADATA_OPTIONS${NC}"
+    get_metadata_options
 
-    # ─── Step 3: Optional features ───────────────────────────────────
-    echo
-    print_header "Optional Features"
+    # ─── 3. Typography ────────────────────────────────────────────────
+    section "Typography" "optional features, spacing, sizing"
 
     local do_small_caps=false
     local smcp_source="phonetic"
     local smcp_c2sc=true
     if ask_yes_no "Add small caps (smcp/c2sc)?" "y"; then
         do_small_caps=true
-        smcp_source=$(ask_smcp_source)
+        ask_smcp_source
+        smcp_source="$CHOICE"
         if ! ask_yes_no "Also add c2sc (uppercase → small caps)?" "y"; then
             smcp_c2sc=false
         fi
@@ -1373,34 +1511,9 @@ main() {
     local onum_source="circled"
     if ask_yes_no "Add old-style figures (onum)?" "y"; then
         do_onum=true
-        onum_source=$(ask_onum_source)
+        ask_onum_source
+        onum_source="$CHOICE"
     fi
-
-    # Nerd Fonts are for coding/TUIs, which is exactly where the mono variant is
-    # used — so they're generated for the MONO variant only (and always last,
-    # since patching is the slow part). The proportional variant gets none. They
-    # are OPT-IN: --nerd-fonts forces them on; otherwise the prompt defaults to no.
-    local do_nerd=false
-    if [ "$NERD_FORCED" = true ]; then
-        do_nerd=true
-        print_info "Nerd Fonts: enabled via --nerd-fonts (mono variant only)."
-    elif ask_yes_no "Generate nerd font variants (mono variant only)?" "n"; then
-        do_nerd=true
-    fi
-
-    # Vertical sizing: always anchor to pixel-perfect (em = N*128), then an
-    # optional uniform scale-up on top. Default scale 1 = leave it pixel-perfect.
-    echo
-    print_header "Vertical sizing"
-    print_info "Every strike is anchored to em = N×128 (pixel-perfect, 1px at native)."
-    printf "${YELLOW}?${NC} Scale factor on top [default 1 = leave pixel-perfect]: "
-    local sf=""
-    if [ "$NON_INTERACTIVE" = true ]; then
-        echo -e "${DIM}1${NC}"
-    else
-        read -r sf
-    fi
-    local scale_factor="${sf:-1}"
 
     # Proportional inter-glyph spacing. --spacing (or a defaults-file value)
     # already pinned it if set; otherwise ask. Blank = let each strike's JSON
@@ -1408,11 +1521,10 @@ main() {
     # strike. The mono variant is unaffected either way.
     if [ "$PROP_GAP_SET" != true ] && [ -z "$PROP_GAP" ]; then
         echo
-        print_header "Proportional spacing"
-        print_info "Gap between glyphs in the proportional variant (mono is unaffected)."
-        print_info "${DIM}blank = per-strike JSON \`spacing\` key, else auto (1/2/3px by size).${NC}"
-        print_info "${DIM}or force all strikes: type a pixel count, or 'auto'.${NC}"
-        printf "${YELLOW}?${NC} Spacing [blank = per-strike/auto]: "
+        echo -e "  ${DIM}Proportional gap between glyphs (mono is unaffected). Blank lets each${NC}"
+        echo -e "  ${DIM}strike's JSON \`spacing\` key decide, else auto (1/2/3px by size); a${NC}"
+        echo -e "  ${DIM}pixel count or 'auto' here forces every strike.${NC}"
+        prompt_line "Proportional spacing" "[enter = per-strike/auto]"
         local sp=""
         if [ "$NON_INTERACTIVE" = true ]; then
             echo -e "${DIM}(blank)${NC}"
@@ -1428,25 +1540,52 @@ main() {
         exit 1
     fi
 
+    # Vertical sizing: always anchor to pixel-perfect (em = N*128), then an
+    # optional uniform scale-up on top. Default scale 1 = leave it pixel-perfect.
+    echo
+    echo -e "  ${DIM}Every strike is anchored to em = N×128 (pixel-perfect, 1px at native).${NC}"
+    echo -e "  ${DIM}A factor here scales the whole family on top of that.${NC}"
+    prompt_line "Scale factor" "[enter = 1, pixel-perfect]"
+    local sf=""
+    if [ "$NON_INTERACTIVE" = true ]; then
+        echo -e "${DIM}1${NC}"
+    else
+        read -r sf
+    fi
+    local scale_factor="${sf:-1}"
+
+    # ─── 4. Outputs ───────────────────────────────────────────────────
+    section "Outputs" "what to emit besides the TTFs"
+
+    # Nerd Fonts are for coding/TUIs, which is exactly where the mono variant is
+    # used — so they're generated for the MONO variant only (and always last,
+    # since patching is the slow part). The proportional variant gets none. They
+    # are OPT-IN: --nerd-fonts forces them on; otherwise the prompt defaults to no.
+    # Asked before WOFF2 because the WOFF2 question depends on the answer.
+    local do_nerd=false
+    if [ "$NERD_FORCED" = true ]; then
+        do_nerd=true
+        echo -e "  ${DIM}Nerd Fonts enabled via --nerd-fonts (mono variant only)${NC}"
+    elif ask_yes_no "Generate Nerd Font variants? (mono only, slow)" "n"; then
+        do_nerd=true
+    fi
+
     local do_woff2=false
     local do_woff2_nerd=false
-    if ask_yes_no "Also export WOFF2 web fonts?" "y"; then
+    if ask_yes_no "Export WOFF2 web fonts + CSS?" "y"; then
         do_woff2=true
         if [ "$do_nerd" = true ]; then
-            if ask_yes_no "Include Nerd Font variants in WOFF2 (large files)?"; then
+            if ask_yes_no "Include the Nerd Font variants in WOFF2? (large)"; then
                 do_woff2_nerd=true
             fi
         fi
     fi
 
     # Console PSF charset (or --no-psf / --charset). Default = console-charset.json.
+    echo
     if ! choose_psf_charset; then
         exit 1
     fi
-
-    # ─── Step 4: Process each variant, then WOFF2, then Nerd (mono, slow) last ─
-    echo
-    echo "────────────────────────────────────────────────────────────────"
 
     local prop_group="$TTF_DIR/quanta-strike"
     local mono_group="$TTF_DIR/quanta-strike-mono"
@@ -1464,6 +1603,96 @@ main() {
         gap_desc="${PROP_GAP}px gap (all strikes)"
         prop_flag="$prop_flag --prop-gap $PROP_GAP"
     fi
+
+    # ─── 5. Review ────────────────────────────────────────────────────
+    # Everything that was just decided, on one screen, before the slow part
+    # starts — the answers are spread over four sections and this is the only
+    # place they can be checked against each other.
+    section "Review" "confirm and build"
+
+    local strike_list="${selected_families[*]}"
+    strike_list="${strike_list//quanta-strike-/}"
+
+    local version_desc="${RESOLVED_VERSION:-unchanged}"
+    if [ -n "$RESOLVED_VERSION" ] && [ "$RESOLVED_VERSION" != "$(read_project_version)" ]; then
+        version_desc="$(read_project_version) → $RESOLVED_VERSION"
+    fi
+
+    # Built with plain ifs on purpose: an assignment whose value contains a
+    # failing $(...) takes that non-zero status, and under set -e a one-liner
+    # like `[ x ] && v="$(...)"` would end the run instead of the string.
+    local feature_desc=""
+    if [ "$do_small_caps" = true ]; then
+        feature_desc="small caps ($smcp_source"
+        if [ "$smcp_c2sc" = true ]; then
+            feature_desc="$feature_desc +c2sc"
+        fi
+        feature_desc="$feature_desc)"
+    fi
+    if [ "$do_onum" = true ]; then
+        if [ -n "$feature_desc" ]; then
+            feature_desc="$feature_desc, "
+        fi
+        feature_desc="${feature_desc}old-style figures ($onum_source)"
+    fi
+    if [ -z "$feature_desc" ]; then
+        feature_desc="none"
+    fi
+
+    local sizing_desc="pixel-perfect (em = N×128)"
+    if [ "$scale_factor" != "1" ] && [ "$scale_factor" != "1.0" ]; then
+        sizing_desc="$sizing_desc, then ×$scale_factor"
+    fi
+
+    local output_desc="ttf"
+    [ "$do_woff2" = true ] && output_desc="$output_desc, woff2 + css"
+    if [ "$do_nerd" = true ]; then
+        output_desc="$output_desc, nerd (mono)"
+        [ "$do_woff2_nerd" = true ] && output_desc="$output_desc + its woff2"
+    fi
+    if [ "$PSF_SKIP" != true ] && [ -n "$PSF_CHARSET" ]; then
+        output_desc="$output_desc, psf ($(basename "$PSF_CHARSET")"
+        [ "$PSF_SCALE" != "1" ] && output_desc="$output_desc ×$PSF_SCALE"
+        output_desc="$output_desc)"
+    fi
+
+    local rk
+    for rk in \
+        "strikes|${#selected_families[@]} · $strike_list ($style_count weights)" \
+        "variants|proportional ($PROP_TYPE, $gap_desc) + mono" \
+        "version|$version_desc" \
+        "features|$feature_desc" \
+        "sizing|$sizing_desc" \
+        "outputs|$output_desc" \
+        "into|$BUILD_DIR/"; do
+        printf '  %s%-10s%s %s\n' "$DIM" "${rk%%|*}" "$NC" "${rk#*|}"
+    done
+    echo
+
+    if ! ask_yes_no "Start the build?" "y"; then
+        print_warning "Nothing built."
+        exit 0
+    fi
+
+    # Budget the progress bar: every run_step below is one unit. Per variant —
+    # one png-to-ttf per weight, a source verify, one metadata pass per strike,
+    # optional features, anchor, optional scale, an output verify.
+    local per_variant=$(( style_count + 1 + ${#selected_families[@]} + 1 + 1 ))
+    [ "$do_small_caps" = true ] && per_variant=$((per_variant + 1))
+    [ "$do_onum" = true ] && per_variant=$((per_variant + 1))
+    if [ "$scale_factor" != "1" ] && [ "$scale_factor" != "1.0" ]; then
+        per_variant=$((per_variant + 1))
+    fi
+    PROGRESS_TOTAL=$(( per_variant * 2 ))
+    [ "$PSF_SKIP" != true ] && PROGRESS_TOTAL=$(( PROGRESS_TOTAL + style_count ))
+    [ "$do_woff2" = true ] && PROGRESS_TOTAL=$(( PROGRESS_TOTAL + 2 ))
+    [ "$do_nerd" = true ] && PROGRESS_TOTAL=$(( PROGRESS_TOTAL + ${#selected_families[@]} ))
+    if [ "$do_nerd" = true ] && [ "$do_woff2" = true ] && [ "$do_woff2_nerd" = true ]; then
+        PROGRESS_TOTAL=$(( PROGRESS_TOTAL + 1 ))
+    fi
+    PROGRESS_DONE=0
+
+    echo
 
     # Proportional variant — base name (quanta-strike-N), no Nerd pass.
     if ! build_variant "proportional ($PROP_TYPE, $gap_desc)" "$BUILD_DIR/tmp/src" \
@@ -1484,17 +1713,16 @@ main() {
         exit 1
     fi
 
-    echo "────────────────────────────────────────────────────────────────"
-    echo
-
     # Base WOFF2 first (mirrors the whole build/ttf tree → both variants at once,
     # pruning any -nerd groups) so normal web fonts are ready before the slow pass.
     if [ "$do_woff2" = true ]; then
-        run_woff2 false
         echo
+        print_header "Web fonts ${DIM}→ $BUILD_DIR/woff2${NC}"
+        PROGRESS_PHASE="web"
+        run_woff2 false
         # Drop-in CSS for the web fonts. Cheap, so it always follows a WOFF2 run.
         run_generate_css
-        echo
+        print_success "WOFF2 + CSS written"
     fi
 
     # Nerd Fonts LAST, and for the MONO variant only. The mono family names carry
@@ -1504,11 +1732,11 @@ main() {
         local mono_families=()
         for fam in "${selected_families[@]}"; do mono_families+=("${fam}-mono"); done
         TTF_GROUP_DIR="$mono_group"
-        run_nerd_fonts_generator "${mono_families[@]}"
         echo
+        run_nerd_fonts_generator "${mono_families[@]}"
         if [ "$do_woff2" = true ] && [ "$do_woff2_nerd" = true ]; then
+            PROGRESS_PHASE="web"
             run_woff2 true
-            echo
         fi
     fi
 
@@ -1519,51 +1747,68 @@ main() {
 
     # ─── Licence: must ship with the fonts (do this after every output exists) ──
     run_copy_license
-    echo
 
     # ─── Clean up the staging dir — only png-to-ttf/metadata needed it ─────────
     if [ "$KEEP_TMP" = true ]; then
-        print_info "Keeping staging dir ${DIM}$BUILD_DIR/tmp${NC} (--keep-tmp)."
+        print_line "  ${DIM}kept staging dir $BUILD_DIR/tmp (--keep-tmp)${NC}"
     else
         rm -rf "$BUILD_DIR/tmp"
-        print_info "Removed staging dir ${DIM}$BUILD_DIR/tmp${NC} (use --keep-tmp to keep it)."
     fi
-    echo
 
     # ─── Summary ──────────────────────────────────────────────────────
+    # The bar is done; take its line back before printing the final block.
+    PROGRESS_TOTAL=0
+    bar_clear
+
     echo
-    print_header "Done!"
-    print_success "Version ${BOLD}$(read_project_version)${NC}"
-    print_success "Built $processed_count strike(s) × 2 variants:"
-    print_success "  proportional ($PROP_TYPE, $gap_desc) → $prop_group"
-    print_success "  mono → $mono_group"
-    [ "$do_small_caps" = true ] && print_success "Added small caps (smcp/c2sc) to both variants"
-    [ "$do_onum" = true ] && print_success "Added old-style figures (onum) to both variants"
-    print_success "Anchored em to strike size (pixel-perfect, accent overshoot handled)"
-    if [ "$scale_factor" != "1" ] && [ "$scale_factor" != "1.0" ]; then
-        print_success "Scaled family by ×$scale_factor on top (pixel identical across strikes)"
+    echo -e "${GREEN}${BOLD}  Done${NC}  ${DIM}version $(read_project_version)${NC}"
+    echo -e "${DIM}  ${RULE}${NC}"
+
+    local out_lines=()
+    out_lines+=("proportional|$processed_count strikes ($PROP_TYPE, $gap_desc) → $prop_group")
+    out_lines+=("mono|$processed_count strikes → $mono_group")
+    if [ "$do_nerd" = true ]; then
+        out_lines+=("nerd|mono only → ${mono_group}-nerd")
     fi
-    [ "$do_woff2" = true ] && print_success "Exported WOFF2 web fonts (both variants)"
-    [ "$do_woff2" = true ] && print_success "Wrote drop-in CSS → $BUILD_DIR/woff2/quanta-strike.css"
-    [ "$do_nerd" = true ] && print_success "Generated Nerd Font variants (mono only): ${selected_families[*]}"
-    [ "$do_woff2_nerd" = true ] && print_success "Exported Nerd Font WOFF2 variants"
+    if [ "$do_woff2" = true ]; then
+        local woff_note="both variants → $BUILD_DIR/woff2"
+        [ "$do_woff2_nerd" = true ] && woff_note="$woff_note (incl. nerd)"
+        out_lines+=("woff2|$woff_note")
+        out_lines+=("css|$BUILD_DIR/woff2/quanta-strike.css")
+    fi
     if [ "$PSF_SKIP" != true ] && [ -n "$PSF_CHARSET" ]; then
         local psf_note="$PSF_CHARSET"
         [ "$PSF_SCALE" != "1" ] && psf_note="$psf_note ×$PSF_SCALE"
-        print_success "Built console PSF fonts ($psf_note) → $PSF_DIR"
+        out_lines+=("psf|$psf_note → $PSF_DIR")
     fi
-    [ -f "$LICENSE_FILE" ] && print_success "Shipped $LICENSE_FILE with the fonts (required by the OFL)"
 
+    local ol
+    for ol in "${out_lines[@]}"; do
+        printf '  %s%-13s%s %s\n' "$DIM" "${ol%%|*}" "$NC" "${ol#*|}"
+    done
+
+    local applied="em anchored to N×128"
+    [ "$do_small_caps" = true ] && applied="$applied · small caps"
+    [ "$do_onum" = true ] && applied="$applied · old-style figures"
+    if [ "$scale_factor" != "1" ] && [ "$scale_factor" != "1.0" ]; then
+        applied="$applied · scaled ×$scale_factor"
+    fi
+    [ -f "$LICENSE_FILE" ] && applied="$applied · OFL.txt shipped"
+    echo -e "  ${DIM}$applied${NC}"
     echo
-    print_info "Output: $BUILD_DIR/"
 }
 
 show_help() {
     echo "Interactive Font Generator"
     echo
-    echo "Usage: $0 [--defaults|-y] [--spacing V] [--nerd-fonts] [--psf] [--charset PATH] [--psf-scale N] [--no-psf] [--keep-tmp]"
+    echo "Usage: $0 [--verbose|-v] [--defaults|-y] [--spacing V] [--nerd-fonts] [--psf] [--charset PATH] [--psf-scale N] [--no-psf] [--keep-tmp]"
     echo
     echo "Options:"
+    echo "  --verbose, -v    Print every sub-command's output as it runs. Without"
+    echo "                   it the build shows a single progress line naming the"
+    echo "                   strike being worked on, and only prints a step's"
+    echo "                   output if that step FAILS. Piped output (not a TTY)"
+    echo "                   never animates — one plain line per step instead."
     echo "  --defaults, -y   Non-interactive: take the DEFAULT answer to every"
     echo "                   prompt and don't ask. The defaults are not all \"yes\":"
     echo "                   version = keep, Nerd Fonts = no, console PSF = no."
@@ -1596,15 +1841,17 @@ show_help() {
     echo "  e.g. $0 -y --spacing 2 --nerd-fonts   # release-style: no PSF"
     echo "       $0 -y --psf --charset console-charset-hr.json --psf-scale 2"
     echo
-    echo "Flow:"
-    echo "  1. Select font families (space to toggle, a to select all)"
-    echo "  2. Configure metadata options (applied to both variants)"
-    echo "  3. Choose optional features (small caps, old-style figures, nerd fonts,"
-    echo "     WOFF2, console PSF charset + scale)"
-    echo "  4. Build EACH strike twice — a proportional variant (quanta-strike-N)"
-    echo "     and a mono variant (quanta-strike-N-mono) — via scripts/png-to-ttf.py into"
-    echo "     build/tmp; then console PSF if opted in; then base WOFF2, then Nerd"
-    echo "     Fonts (mono variant only) last"
+    echo "Flow (the prompts are grouped into these five):"
+    echo "  1. Strikes      which sizes/weights to build (space toggles, a = all)"
+    echo "  2. Release      version bump + font metadata (both variants)"
+    echo "  3. Typography   small caps, old-style figures, spacing, scale"
+    echo "  4. Outputs      Nerd Fonts, WOFF2 + CSS, console PSF"
+    echo "  5. Review       every answer on one screen, then confirm"
+    echo
+    echo "  The build then makes EACH strike twice — a proportional variant"
+    echo "  (quanta-strike-N) and a mono variant (quanta-strike-N-mono) — via"
+    echo "  scripts/png-to-ttf.py into build/tmp; then console PSF if opted in;"
+    echo "  then base WOFF2, then Nerd Fonts (mono variant only) last."
     echo
     echo "Requirements:"
     echo "  - scripts/png-to-ttf.py (builds each strike's TTF from its PNG + JSON)"
@@ -1622,6 +1869,9 @@ while [ $# -gt 0 ]; do
         --help|-h)
             show_help
             exit 0
+            ;;
+        --verbose|-v)
+            VERBOSE=true
             ;;
         --defaults|-y|--yes|--non-interactive)
             NON_INTERACTIVE=true

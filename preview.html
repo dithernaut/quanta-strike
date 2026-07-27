@@ -77,13 +77,12 @@
      browser is not honouring the stroke — measure here, don't eyeball. */
   .ref { margin: 0 0 14px; }
   .ref i {
-    display: block; width: 180px; height: 1px;
+    display: block; width: 180px; height: var(--qs-px);
     background: currentColor; zoom: var(--zoom, 2);
   }
   /* The 32 draws a 2px rule, so it gets a two-pixel ruler to match against as
-     well as the one-pixel unit. Height in px because one source pixel is 1 CSS
-     px at every strike's native size; the shared zoom scales both alike. */
-  .ref i.two { height: 2px; margin-top: 5px; }
+     well as the one-pixel unit. The shared zoom scales both alike. */
+  .ref i.two { height: calc(var(--qs-px) * 2); margin-top: 5px; }
 
   hr { border: 0; border-top: var(--qs-px) solid var(--line); margin: 44px 0 28px; }
 </style>
