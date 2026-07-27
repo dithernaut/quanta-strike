@@ -96,8 +96,8 @@ KEEP_TMP=false
 
 # ─── Output mode ─────────────────────────────────────────────────────────────
 # Quiet (the default): every sub-command's chatter is captured to a log and
-# replaced by a single animated line — braille spinner, progress bar, and the
-# strike currently being worked on. Only phase headers, warnings, errors and the
+# replaced by a two-line block redrawn in place — braille spinner + gauge on one
+# line, the strike currently being worked on on the next. Only phase headers, warnings, errors and the
 # final summary are printed for real; a step that FAILS dumps its captured
 # output, so nothing is lost when it matters.
 # --verbose restores the old firehose, running each step inline.
@@ -130,27 +130,57 @@ bar_enabled() {
     [ "$VERBOSE" != true ] && [ "$IS_TTY" = true ] && [ "$PROGRESS_TOTAL" -gt 0 ]
 }
 
-# Wipe the bar off the current line so a permanent message can take it. Every
+# Wipe the bar off the screen so a permanent message can take its place. Every
 # print_* helper clears, prints, then redraws — the bar stays pinned at the
-# bottom while the real log scrolls above it.
+# bottom while the real log scrolls above it. Leaves the cursor at the start of
+# the bar's FIRST line, which is where the next message gets written.
 bar_clear() {
     if [ "$BAR_ON_SCREEN" = true ]; then
-        printf '\r\033[2K'
+        printf '\r\033[2K'          # erase the label line
+        printf '\033[1A\033[2K'     # up to the bar line, erase that too
         BAR_ON_SCREEN=false
     fi
 }
 
+# Re-read the terminal width every so often (not every frame — that would be a
+# fork 12×/second). Without this a window resized mid-build keeps the width it
+# had at startup and the bar starts wrapping.
+BAR_TICK=0
+bar_measure() {
+    if [ $(( BAR_TICK % 24 )) -eq 0 ]; then
+        TERM_COLS=$(tput cols 2>/dev/null || echo 80)
+        [ -n "$TERM_COLS" ] || TERM_COLS=80
+    fi
+    BAR_TICK=$(( BAR_TICK + 1 ))
+}
+
+# Two lines: what it is currently doing, then the gauge. Splitting them keeps
+# each one short enough to survive a narrow window — a wrapped line would break
+# the cursor-up redraw and leave debris on screen.
+#
+# The gauge goes SECOND so the cursor comes to rest at a fixed column: it is the
+# label that changes width from step to step, and parking the cursor after it
+# makes it visibly jitter across the screen.
+#
+#     mono · verify pixel grid · build output
+#   ⠙ ██████████████████░░░░  82%
 bar_draw() {
     bar_enabled || return 0
+    bar_measure
+
+    # Gauge shrinks with the window so line 1 always fits.
+    local width=$(( TERM_COLS - 9 ))
+    [ "$width" -gt "$BAR_WIDTH" ] && width=$BAR_WIDTH
+    [ "$width" -lt 4 ] && width=4
 
     # Clamped: a miscounted budget must never overflow the bar or print >100%.
     local ticks=$PROGRESS_DONE
     [ "$ticks" -gt "$PROGRESS_TOTAL" ] && ticks=$PROGRESS_TOTAL
     local pct=$(( ticks * 100 / PROGRESS_TOTAL ))
-    local filled=$(( ticks * BAR_WIDTH / PROGRESS_TOTAL ))
+    local filled=$(( ticks * width / PROGRESS_TOTAL ))
 
     local fill="" empty="" i
-    for ((i = 0; i < BAR_WIDTH; i++)); do
+    for ((i = 0; i < width; i++)); do
         # Braces are required: bash 3.2 reads the bytes of a multibyte literal
         # that directly follows an unbraced $var as part of the variable name,
         # and the append silently yields nothing.
@@ -165,18 +195,22 @@ bar_draw() {
         text="$PROGRESS_PHASE"
     fi
 
-    # Never let the line wrap — a wrapped line breaks the \r redraw. The strike
-    # name is the point of this line, so it gets whatever room is left.
-    local avail=$(( TERM_COLS - BAR_WIDTH - 10 ))
-    [ "$avail" -lt 12 ] && avail=12
+    local avail=$(( TERM_COLS - 3 ))
+    [ "$avail" -lt 8 ] && avail=8
     if [ "${#text}" -gt "$avail" ]; then
         text="${text:0:$((avail - 1))}…"
     fi
 
-    printf '\r\033[2K%s %s%s%s%s%s %3d%%  %s' \
+    # Back to the top of the block before repainting, once it is on screen.
+    if [ "$BAR_ON_SCREEN" = true ]; then
+        printf '\r\033[1A'
+    fi
+
+    printf '\033[2K  %s%s%s\n' "$DIM" "$text" "$NC"
+    printf '\033[2K%s %s%s%s%s%s %3d%%' \
         "${CYAN}${SPINNER[$SPINNER_I]}${NC}" \
         "$GREEN" "$fill" "$DIM" "$empty" "$NC" \
-        "$pct" "$text"
+        "$pct"
 
     SPINNER_I=$(( (SPINNER_I + 1) % ${#SPINNER[@]} ))
     BAR_ON_SCREEN=true
@@ -212,7 +246,11 @@ print_header() {
     bar_clear; echo -e "${CYAN}▶${NC} $1"; bar_draw
 }
 
-# Bar-safe blank line / raw line, for the spots that used a bare echo.
+# Bar-safe blank line / raw line. Anything printed between the start of the
+# build and the final summary MUST go through this or one of the print_*
+# helpers: a bare echo writes at wherever the cursor happens to be (the end of
+# the bar's second line) and shifts the block down without the bar knowing, so
+# the next redraw erases the wrong rows and leaves a stale gauge behind.
 print_line() {
     bar_clear; echo -e "$1"; bar_draw
 }
@@ -1374,7 +1412,7 @@ build_variant() {
     [ -n "$suffix" ] && phase="mono"
     PROGRESS_PHASE="$phase"
 
-    echo
+    print_line ""
     print_header "${BOLD}$label${NC} ${DIM}→ $group${NC}"
 
     # Staged/internal family names carry the suffix (mono → "-mono"); the
@@ -1714,7 +1752,7 @@ main() {
 
     # Console PSF (mono cell bitmaps, trimmed to the chosen charset). Independent
     # of the TTF pipeline — reads src/ directly. Skipped via --no-psf / prompt.
-    echo
+    print_line ""
     if ! run_png_to_psf "${selected_families[@]}"; then
         exit 1
     fi
@@ -1722,7 +1760,7 @@ main() {
     # Base WOFF2 first (mirrors the whole build/ttf tree → both variants at once,
     # pruning any -nerd groups) so normal web fonts are ready before the slow pass.
     if [ "$do_woff2" = true ]; then
-        echo
+        print_line ""
         print_header "Web fonts ${DIM}→ $BUILD_DIR/woff2${NC}"
         PROGRESS_PHASE="web"
         run_woff2 false
@@ -1738,7 +1776,7 @@ main() {
         local mono_families=()
         for fam in "${selected_families[@]}"; do mono_families+=("${fam}-mono"); done
         TTF_GROUP_DIR="$mono_group"
-        echo
+        print_line ""
         run_nerd_fonts_generator "${mono_families[@]}"
         if [ "$do_woff2" = true ] && [ "$do_woff2_nerd" = true ]; then
             PROGRESS_PHASE="web"
@@ -1811,7 +1849,7 @@ show_help() {
     echo
     echo "Options:"
     echo "  --verbose, -v    Print every sub-command's output as it runs. Without"
-    echo "                   it the build shows a single progress line naming the"
+    echo "                   it the build shows a progress gauge naming the"
     echo "                   strike being worked on, and only prints a step's"
     echo "                   output if that step FAILS. Piped output (not a TTY)"
     echo "                   never animates — one plain line per step instead."

@@ -96,8 +96,13 @@ You need [FontForge](https://fontforge.org/) with Python bindings
 ./build.sh --verbose        # full per-step output instead of the progress bar
 ```
 
-The build shows a single progress line naming the strike it is on, and prints a
-step's output only if that step fails. `--verbose` (`-v`) shows everything.
+The build shows a progress gauge with the strike it is on, and prints a step's
+output only if that step fails. `--verbose` (`-v`) shows everything.
+
+```
+  mono · metadata · quanta-strike-16-mono
+⠹ ████████████████░░░░░░  72%
+```
 
 The release number lives in [`VERSION`](VERSION). A successful build writes the
 bump back.

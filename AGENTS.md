@@ -224,8 +224,17 @@ or it will hang a non-interactive build.
 
 ## Build output
 Quiet by default: each sub-command's stdout/stderr is captured to a temp log and the
-terminal shows one animated line — braille spinner, progress bar, and the strike being
-worked on — plus phase headers, warnings and the final summary. A step that FAILS dumps
+terminal shows a two-line block, redrawn in place — the strike being worked on on the
+first line, a braille spinner + gauge + percent on the second — plus phase headers,
+warnings and the final summary. Two lines rather than one so neither wraps in a narrow
+window; a wrapped line would break the cursor-up redraw and leave debris. The gauge is
+second because it has a FIXED width, so the cursor comes to rest at a stable column
+instead of jittering with the label. The gauge shrinks with the window and the label
+truncates, both re-measured as the build runs, so resizing mid-build is safe.
+
+While the bar is live, anything printed must go through `print_line` or a `print_*`
+helper — a bare `echo` writes at the cursor and shifts the block without the bar
+knowing, so the next redraw clears the wrong rows and strands a stale gauge in the log. A step that FAILS dumps
 its captured output, so nothing is lost when it matters. `--verbose` / `-v` runs every
 step inline with output passed straight through (the pre-existing behaviour). Piped
 output (not a TTY) never animates: one plain line per step instead, so CI logs stay
