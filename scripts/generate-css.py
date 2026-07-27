@@ -34,6 +34,14 @@ paired utility classes:
     .qs-16      { font-family: "quanta-strike-16";      font-size: 16px; }
     .qs-16-mono { font-family: "quanta-strike-16-mono"; font-size: 16px; }
 
+The locked classes also pin the underline and strikeout to whole pixels, the
+same stroke anchor-em.py writes into post and OS/2. Chromium and WebKit would
+pick that up from the font on their own; Firefox draws its own line and ignores
+from-font, so the stroke is stated as a length here to keep all three engines on
+the grid. px in the locked classes, which sit on a px font-size; rem in the
+scale presets, where the text zooms with html font-size and the rule has to zoom
+with it. One source pixel is 1/16rem either way.
+
 The mono-only entry points exist so a code/TUI project can import mono without
 pulling proportional faces. In those files --font-strike-N also points at mono,
 so existing .qs-N / scale consumers keep working.
@@ -59,6 +67,7 @@ Usage:
 
 import argparse
 import re
+import struct
 import sys
 from fractions import Fraction
 from pathlib import Path
@@ -250,6 +259,113 @@ def render_core(strikes, sizes, url_prefix, flat, *, mono_only=False):
     return "".join(out)
 
 
+# strike -> (stroke px, underline offset px), read from the built TTFs by
+# load_decoration(). The fonts are the source of truth: anchor-em.py works the
+# numbers out from each strike's own descender depth, which is art, not
+# arithmetic, so there is nothing here to re-derive them from.
+DECORATION = {}
+
+
+def read_decoration(ttf, strike):
+    """(stroke, underline offset) in px at the strike's native size.
+
+    Straight out of post: underlineThickness, and underlinePosition as the TOP
+    of the stroke (negative below the baseline, so the offset is its negation).
+    Scaling by strike/upem rather than assuming 128 units per pixel keeps this
+    honest for a --scale build, where the em shrinks but the outlines don't.
+    """
+    data = ttf.read_bytes()
+    offsets = {}
+    for i in range(struct.unpack(">H", data[4:6])[0]):
+        entry = 12 + 16 * i
+        tag = data[entry:entry + 4].decode("latin1")
+        offsets[tag] = struct.unpack(">I", data[entry + 8:entry + 12])[0]
+    head, post = offsets["head"], offsets["post"]
+    upem = struct.unpack(">H", data[head + 18:head + 20])[0]
+    position, thickness = struct.unpack(">hh", data[post + 8:post + 12])
+    return thickness * strike / upem, -position * strike / upem
+
+
+def load_decoration(ttf_dir, sizes):
+    """Fill DECORATION from a built TTF tree; silent no-op when it isn't there.
+
+    Only the proportional face is read: anchor-em.py gives every variant of a
+    strike the same metrics, so mono would answer identically.
+    """
+    if not ttf_dir or not ttf_dir.is_dir():
+        return
+    for size in sizes:
+        matches = sorted(ttf_dir.glob(f"**/quanta-strike-{size}-regular.ttf"))
+        if matches:
+            DECORATION[size] = read_decoration(matches[0], size)
+
+
+def decoration_for(strike):
+    """The stroke and underline offset a strike's CSS should state.
+
+    Falls back to the build's own rule when the TTFs aren't reachable — enough
+    for a standalone run against a bare woff2 folder, though a strike whose
+    descender can't hold the full gap (the 6) needs the real font to say so.
+    """
+    if strike in DECORATION:
+        return DECORATION[strike]
+    stroke = max(1, (strike + 8) // 16)
+    return float(stroke), float(stroke)
+
+
+def css_px(value):
+    """A px length, kept whole when the value is."""
+    value = round(value, 3)
+    return f"{int(value)}px" if value == int(value) else f"{value}px"
+
+
+def css_rem(value):
+    """The same length in rem, on the scale's 16px root (see REM_ROOT).
+
+    Zero has no unit to argue about, and 0rem reads like a mistake.
+    """
+    if not value:
+        return "0"
+    rem = round(value / REM_ROOT, 6)
+    text = f"{rem:.6f}".rstrip("0").rstrip(".")
+    return f"{text}rem"
+
+
+def utility_rule(cls, font_var, size):
+    """One strike's locked class: family, size and rule metrics bound together.
+
+    text-underline-offset is the gap from the baseline to the TOP of the stroke,
+    the same thing post underlinePosition holds, so this restates the font
+    rather than second-guessing it.
+    """
+    stroke, offset = decoration_for(size)
+    return (
+        f".{cls} {{ font-family: var(--{font_var}); font-size: {size}px; "
+        f"line-height: 1; text-decoration-thickness: {css_px(stroke)}; "
+        f"text-underline-offset: {css_px(offset)}; }}\n"
+    )
+
+
+def inherit_thickness_rule(classes):
+    """Push the stroke down to the elements that actually draw a decoration.
+
+    text-decoration-thickness does NOT inherit (CSS Text Decoration 4), unlike
+    text-underline-offset, which does. So an <a>, <u>, <s> or <del> inside a
+    strike computes `auto` and the engine picks its own stroke — a hairline in
+    WebKit, something else again in Gecko and Blink. Setting it back to inherit
+    hands them the strike's whole-pixel value.
+
+    :where() holds the whole selector at zero specificity, so a nested .qs-N
+    still wins on its own element and passes its own stroke down from there.
+    """
+    selector = ", ".join(f".{cls}" for cls in classes)
+    return (
+        "\n/* text-decoration-thickness does not inherit — hand it to the <a>,\n"
+        "   <u>, <s> and <del> that draw the line, or the engine picks its own. */\n"
+        f":where({selector}) * {{ text-decoration-thickness: inherit; }}\n"
+    )
+
+
 def render_utilities(strikes, sizes, core_import, *, mono_only=False):
     """The opinionated layer: one class per strike, family and size bound together.
 
@@ -262,34 +378,31 @@ def render_utilities(strikes, sizes, core_import, *, mono_only=False):
     still works because the mono core points --font-strike-N at mono.
     """
     out = []
+    classes = []
     if core_import:
         out.append(f'@import "{core_import}";\n\n')
         out.append(HEADER)
     out.append("\n/* Family and size together. Never split them. */\n")
+
+    def emit(cls, var, size):
+        classes.append(cls)
+        out.append(utility_rule(cls, var, size))
+
     for size in sizes:
         files = strikes[size]
         if mono_only:
             if "mono" not in files:
                 continue
-            out.append(
-                f".qs-{size} {{ font-family: var(--font-strike-{size}); "
-                f"font-size: {size}px; line-height: 1; }}\n"
-            )
-            out.append(
-                f".qs-{size}-mono {{ font-family: var(--font-strike-{size}-mono); "
-                f"font-size: {size}px; line-height: 1; }}\n"
-            )
+            emit(f"qs-{size}", f"font-strike-{size}", size)
+            emit(f"qs-{size}-mono", f"font-strike-{size}-mono", size)
         else:
             if "prop" in files:
-                out.append(
-                    f".qs-{size} {{ font-family: var(--font-strike-{size}); "
-                    f"font-size: {size}px; line-height: 1; }}\n"
-                )
+                emit(f"qs-{size}", f"font-strike-{size}", size)
             if "mono" in files:
-                out.append(
-                    f".qs-{size}-mono {{ font-family: var(--font-strike-{size}-mono); "
-                    f"font-size: {size}px; line-height: 1; }}\n"
-                )
+                emit(f"qs-{size}-mono", f"font-strike-{size}-mono", size)
+
+    if classes:
+        out.append(inherit_thickness_rule(classes))
     return "".join(out)
 
 
@@ -385,13 +498,23 @@ def render_scale(base, strikes, *, mono=False):
         by_strike.setdefault(strike, []).append(step)
     for strike, steps in by_strike.items():
         selectors = ",\n".join(f"  .text-{step}" for step in steps)
+        stroke, offset = decoration_for(strike)
         lines.append(
             f"{selectors} {{\n"
             f"    font-family: var({font_var(strike)});\n"
             f"    font-size: var(--text-{steps[0]});\n"
             f"    line-height: 1;\n"
+            f"    text-decoration-thickness: {css_rem(stroke)};\n"
+            f"    text-underline-offset: {css_rem(offset)};\n"
             f"  }}\n"
         )
+    # text-decoration-thickness does not inherit, so the <a> or <s> inside a
+    # text-* would compute `auto` and get the engine's own stroke. See
+    # inherit_thickness_rule(); :where() keeps a nested text-* winning.
+    text_sel = ", ".join(f".text-{step}" for step, _ in scale)
+    lines.append(
+        f"  :where({text_sel}) * {{ text-decoration-thickness: inherit; }}\n"
+    )
     lines.append("}\n")
 
     lines.append(
@@ -400,7 +523,10 @@ def render_scale(base, strikes, *, mono=False):
         f"    font-family: var({font_var(base)});\n"
         "    font-size: var(--text-base);\n"
         "    line-height: 1;\n"
+        f"    text-decoration-thickness: {css_rem(decoration_for(base)[0])};\n"
+        f"    text-underline-offset: {css_rem(decoration_for(base)[1])};\n"
         "  }\n"
+        "  :where(body) * { text-decoration-thickness: inherit; }\n"
         "}\n"
     )
     return "".join(lines)
@@ -506,6 +632,9 @@ def main():
     parser.add_argument("--out", help="where to write the CSS (default: the woff2 dir)")
     parser.add_argument("--url-prefix", default="", help="prepended to every font URL")
     parser.add_argument("--flat", action="store_true", help="every woff2 sits in one folder")
+    parser.add_argument("--ttf-dir",
+                        help="built TTFs to read underline metrics from "
+                             "(default: a ttf/ folder beside the woff2 dir)")
     args = parser.parse_args()
 
     woff2_dir = Path(args.woff2_dir)
@@ -522,6 +651,10 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
 
     sizes = list(strikes)
+    # WOFF2 table data is brotli-compressed, so the underline metrics have to
+    # come from the TTFs the same build produced.
+    load_decoration(Path(args.ttf_dir) if args.ttf_dir else woff2_dir.parent / "ttf",
+                    sizes)
     mono_sizes = [s for s in sizes if "mono" in strikes[s]]
     written = []
 

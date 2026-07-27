@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>quanta-strike — preview</title>
+
+<!-- The CSS the build emits, imported as a user would. quanta-strike.css comes
+     along with it, so the @font-face blocks and the .qs-N classes here are the
+     real thing — rebuild and reload and this page follows. -->
+<link rel="stylesheet" href="build/woff2/quanta-strike-utilities.css">
+
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #fbfbfa; --ink: #16150f; --dim: #6b6a60; --line: #e4e2da;
+    /* One source pixel, the same unit grid.css publishes as --qs-px. Every rule
+       on this page is a whole number of these, separators included: the chrome
+       is locked to px sizes like the .qs-N classes are, so a source pixel here
+       is 1 CSS px. Stated once rather than as a literal at each border. */
+    --qs-px: 1px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #14140f; --ink: #ecebe3; --dim: #8f8e83; --line: #2e2e26; }
+  }
+
+  /* The page chrome is set in quanta-strike too — the 12 for copy, the 10 for
+     labels, the 16 for titles. Each keeps its own strike's size, and the
+     line-heights are whole pixels so the leading stays on the grid as well. */
+  body {
+    margin: 0; padding: 0 0 64px;
+    background: var(--bg); color: var(--ink);
+    font-family: var(--font-strike-12); font-size: 12px; line-height: 18px;
+  }
+  h1 {
+    font-family: var(--font-strike-16); font-size: 16px; line-height: 24px;
+    margin: 0 0 6px; font-weight: 400;
+  }
+  h2 {
+    font-family: var(--font-strike-12); font-size: 12px; line-height: 18px;
+    font-weight: 400; margin: 0 0 10px;
+    padding-bottom: 6px; border-bottom: var(--qs-px) solid var(--line);
+  }
+  h2 span { color: var(--dim); }
+  .sub, .lbl, .note, .controls {
+    font-family: var(--font-strike-10); font-size: 10px; line-height: 16px;
+    color: var(--dim);
+  }
+  .sub { margin: 0; }
+  .lbl { margin: 14px 0 6px; }
+  .note { max-width: 68ch; margin: 0 0 28px; }
+  code { font-family: var(--font-strike-10-mono); font-size: 10px; }
+
+  .wrap { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+  header {
+    position: sticky; top: 0; z-index: 10;
+    background: color-mix(in srgb, var(--bg) 90%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: var(--qs-px) solid var(--line);
+    padding: 14px 0; margin-bottom: 28px;
+  }
+  .controls { margin-top: 10px; }
+  .controls select { font: inherit; padding: 2px 4px; }
+  .strike { margin: 0 0 34px; }
+
+  /* Samples are plain blocks on the normal flow — no flex or grid centring, so
+     nothing here can land the text on half a pixel and get blamed on the font.
+     Zoom is a WHOLE-number multiplier for the same reason: it scales font-size,
+     stroke and offset by the same integer, so one source pixel stays a whole
+     number of screen pixels and what you peep at is what the font does. */
+  p.s { margin: 0 0 6px; zoom: var(--zoom, 2); }
+  .noskip { text-decoration-skip-ink: none; }
+
+  /* One source pixel, drawn. Every strike renders one source pixel as 1 CSS px
+     at its native size, so this bar is the ruler for all of them: under the
+     same zoom it must match the underline above it exactly. If it doesn't, the
+     browser is not honouring the stroke — measure here, don't eyeball. */
+  .ref { margin: 0 0 14px; }
+  .ref i {
+    display: block; width: 180px; height: 1px;
+    background: currentColor; zoom: var(--zoom, 2);
+  }
+  /* The 32 draws a 2px rule, so it gets a two-pixel ruler to match against as
+     well as the one-pixel unit. Height in px because one source pixel is 1 CSS
+     px at every strike's native size; the shared zoom scales both alike. */
+  .ref i.two { height: 2px; margin-top: 5px; }
+
+  hr { border: 0; border-top: var(--qs-px) solid var(--line); margin: 44px 0 28px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <h1>quanta-strike</h1>
+    <p class="sub">Every strike, both variants, at its native size. Rebuild with <code>./build.sh -y</code> and reload.</p>
+    <div class="controls">
+      <label>Zoom
+        <select id="zoom">
+        <option value="1">1&times; &mdash; native</option>
+        <option value="2" selected>2&times;</option>
+        <option value="3">3&times;</option>
+        <option value="4">4&times;</option>
+        <option value="8">8&times;</option>
+        <option value="12">12&times;</option>
+        <option value="16">16&times;</option>
+        </select>
+      </label>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <section class="strike">
+    <h2>quanta-strike-6 <span>6px</span></h2>
+    <p class="lbl">proportional &mdash; .qs-6</p>
+    <p class="qs-6 s">The quick brown fox jumps over the lazy dog</p>
+    <p class="qs-6 s">ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789</p>
+    <p class="lbl">mono &mdash; .qs-6-mono</p>
+    <p class="qs-6-mono s">The quick brown fox jumps over the lazy dog</p>
+    <p class="qs-6-mono s">ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789</p>
+  </section>
+  <section class="strike">
+    <h2>quanta-strike-10 <span>10px</span></h2>
+    <p class="lbl">proportional &mdash; .qs-10</p>
+    <p class="qs-10 s">The quick brown fox jumps over the lazy dog</p>
+    <p class="qs-10 s">ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789</p>
+    <p class="lbl">mono &mdash; .qs-10-mono</p>
+    <p class="qs-10-mono s">The quick brown fox jumps over the lazy dog</p>
+    <p class="qs-10-mono s">ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789</p>
+  </section>
+  <section class="strike">
+    <h2>quanta-strike-12 <span>12px</span></h2>
+    <p class="lbl">proportional &mdash; .qs-12</p>
+    <p class="qs-12 s">The quick brown fox jumps over the lazy dog</p>
+    <p class="qs-12 s">ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789</p>
+    <p class="lbl">mono &mdash; .qs-12-mono</p>
+    <p class="qs-12-mono s">The quick brown fox jumps over the lazy dog</p>
+    <p class="qs-12-mono s">ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789</p>
+  </section>
+  <section class="strike">
+    <h2>quanta-strike-14 <span>14px</span></h2>
+    <p class="lbl">proportional &mdash; .qs-14</p>
+    <p class="qs-14 s">The quick brown fox jumps over the lazy dog</p>
+    <p class="qs-14 s">ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789</p>
+    <p class="lbl">mono &mdash; .qs-14-mono</p>
+    <p class="qs-14-mono s">The quick brown fox jumps over the lazy dog</p>
+    <p class="qs-14-mono s">ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789</p>
+  </section>
+  <section class="strike">
+    <h2>quanta-strike-16 <span>16px</span></h2>
+    <p class="lbl">proportional &mdash; .qs-16</p>
+    <p class="qs-16 s">The quick brown fox jumps over the lazy dog</p>
+    <p class="qs-16 s">ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789</p>
+    <p class="lbl">mono &mdash; .qs-16-mono</p>
+    <p class="qs-16-mono s">The quick brown fox jumps over the lazy dog</p>
+    <p class="qs-16-mono s">ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789</p>
+  </section>
+  <section class="strike">
+    <h2>quanta-strike-18 <span>18px</span></h2>
+    <p class="lbl">proportional &mdash; .qs-18</p>
+    <p class="qs-18 s">The quick brown fox jumps over the lazy dog</p>
+    <p class="qs-18 s">ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789</p>
+    <p class="lbl">mono &mdash; .qs-18-mono</p>
+    <p class="qs-18-mono s">The quick brown fox jumps over the lazy dog</p>
+    <p class="qs-18-mono s">ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789</p>
+  </section>
+  <section class="strike">
+    <h2>quanta-strike-20 <span>20px</span></h2>
+    <p class="lbl">proportional &mdash; .qs-20</p>
+    <p class="qs-20 s">The quick brown fox jumps over the lazy dog</p>
+    <p class="qs-20 s">ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789</p>
+    <p class="lbl">mono &mdash; .qs-20-mono</p>
+    <p class="qs-20-mono s">The quick brown fox jumps over the lazy dog</p>
+    <p class="qs-20-mono s">ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789</p>
+  </section>
+  <section class="strike">
+    <h2>quanta-strike-32 <span>32px</span></h2>
+    <p class="lbl">proportional &mdash; .qs-32</p>
+    <p class="qs-32 s">The quick brown fox jumps over the lazy dog</p>
+    <p class="qs-32 s">ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789</p>
+    <p class="lbl">mono &mdash; .qs-32-mono</p>
+    <p class="qs-32-mono s">The quick brown fox jumps over the lazy dog</p>
+    <p class="qs-32-mono s">ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789</p>
+  </section>
+
+<hr>
+
+<h1>Underline &amp; strikethrough</h1>
+<p class="note">
+  Each strike shows the same line three ways. The first two are the SAME underline;
+  only <code>text-decoration-skip-ink</code> differs — on <code>auto</code> the browser
+  cuts the rule around descenders, which on the small strikes reads as dashes. The bar
+  below them is exactly <strong>one source pixel</strong> tall at the same zoom: both
+  rules should match its thickness.
+</p>
+<p class="note">
+  Strikethrough position is <strong>not</strong> settable: Firefox reads OS/2
+  <code>yStrikeoutPosition</code> from the font, Chrome ignores it and centres the line
+  on half the x-height, and no CSS property can move it. Where the x-height is an even
+  number of pixels (the 6, 12 and 14) Chrome lands it on a half pixel.
+</p>
+
+  <section class="strike" data-strike="6">
+    <h2>quanta-strike-6 <span>6px</span></h2>
+    <p class="lbl">underline &mdash; skip-ink: auto (browser default, cuts at descenders)</p>
+    <p class="qs-6 s"><u>The quick brown fox jumps over the lazy dog</u></p>
+    <p class="lbl">underline &mdash; skip-ink: none (uncut)</p>
+    <p class="qs-6 s noskip"><u>The quick brown fox jumps over the lazy dog</u></p>
+    <p class="lbl">one source pixel &mdash; the two rules above must match this</p>
+    <p class="ref"><i></i></p>
+    <p class="lbl">strikethrough</p>
+    <p class="qs-6 s"><s>The quick brown fox jumps over the lazy dog</s></p>
+  </section>
+  <section class="strike" data-strike="10">
+    <h2>quanta-strike-10 <span>10px</span></h2>
+    <p class="lbl">underline &mdash; skip-ink: auto (browser default, cuts at descenders)</p>
+    <p class="qs-10 s"><u>The quick brown fox jumps over the lazy dog</u></p>
+    <p class="lbl">underline &mdash; skip-ink: none (uncut)</p>
+    <p class="qs-10 s noskip"><u>The quick brown fox jumps over the lazy dog</u></p>
+    <p class="lbl">one source pixel &mdash; the two rules above must match this</p>
+    <p class="ref"><i></i></p>
+    <p class="lbl">strikethrough</p>
+    <p class="qs-10 s"><s>The quick brown fox jumps over the lazy dog</s></p>
+  </section>
+  <section class="strike" data-strike="12">
+    <h2>quanta-strike-12 <span>12px</span></h2>
+    <p class="lbl">underline &mdash; skip-ink: auto (browser default, cuts at descenders)</p>
+    <p class="qs-12 s"><u>The quick brown fox jumps over the lazy dog</u></p>
+    <p class="lbl">underline &mdash; skip-ink: none (uncut)</p>
+    <p class="qs-12 s noskip"><u>The quick brown fox jumps over the lazy dog</u></p>
+    <p class="lbl">one source pixel &mdash; the two rules above must match this</p>
+    <p class="ref"><i></i></p>
+    <p class="lbl">strikethrough</p>
+    <p class="qs-12 s"><s>The quick brown fox jumps over the lazy dog</s></p>
+  </section>
+  <section class="strike" data-strike="14">
+    <h2>quanta-strike-14 <span>14px</span></h2>
+    <p class="lbl">underline &mdash; skip-ink: auto (browser default, cuts at descenders)</p>
+    <p class="qs-14 s"><u>The quick brown fox jumps over the lazy dog</u></p>
+    <p class="lbl">underline &mdash; skip-ink: none (uncut)</p>
+    <p class="qs-14 s noskip"><u>The quick brown fox jumps over the lazy dog</u></p>
+    <p class="lbl">one source pixel &mdash; the two rules above must match this</p>
+    <p class="ref"><i></i></p>
+    <p class="lbl">strikethrough</p>
+    <p class="qs-14 s"><s>The quick brown fox jumps over the lazy dog</s></p>
+  </section>
+  <section class="strike" data-strike="16">
+    <h2>quanta-strike-16 <span>16px</span></h2>
+    <p class="lbl">underline &mdash; skip-ink: auto (browser default, cuts at descenders)</p>
+    <p class="qs-16 s"><u>The quick brown fox jumps over the lazy dog</u></p>
+    <p class="lbl">underline &mdash; skip-ink: none (uncut)</p>
+    <p class="qs-16 s noskip"><u>The quick brown fox jumps over the lazy dog</u></p>
+    <p class="lbl">one source pixel &mdash; the two rules above must match this</p>
+    <p class="ref"><i></i></p>
+    <p class="lbl">strikethrough</p>
+    <p class="qs-16 s"><s>The quick brown fox jumps over the lazy dog</s></p>
+  </section>
+  <section class="strike" data-strike="18">
+    <h2>quanta-strike-18 <span>18px</span></h2>
+    <p class="lbl">underline &mdash; skip-ink: auto (browser default, cuts at descenders)</p>
+    <p class="qs-18 s"><u>The quick brown fox jumps over the lazy dog</u></p>
+    <p class="lbl">underline &mdash; skip-ink: none (uncut)</p>
+    <p class="qs-18 s noskip"><u>The quick brown fox jumps over the lazy dog</u></p>
+    <p class="lbl">one source pixel &mdash; the two rules above must match this</p>
+    <p class="ref"><i></i></p>
+    <p class="lbl">strikethrough</p>
+    <p class="qs-18 s"><s>The quick brown fox jumps over the lazy dog</s></p>
+  </section>
+  <section class="strike" data-strike="20">
+    <h2>quanta-strike-20 <span>20px</span></h2>
+    <p class="lbl">underline &mdash; skip-ink: auto (browser default, cuts at descenders)</p>
+    <p class="qs-20 s"><u>The quick brown fox jumps over the lazy dog</u></p>
+    <p class="lbl">underline &mdash; skip-ink: none (uncut)</p>
+    <p class="qs-20 s noskip"><u>The quick brown fox jumps over the lazy dog</u></p>
+    <p class="lbl">one source pixel &mdash; the two rules above must match this</p>
+    <p class="ref"><i></i></p>
+    <p class="lbl">strikethrough</p>
+    <p class="qs-20 s"><s>The quick brown fox jumps over the lazy dog</s></p>
+  </section>
+  <section class="strike" data-strike="32">
+    <h2>quanta-strike-32 <span>32px</span></h2>
+    <p class="lbl">underline &mdash; skip-ink: auto (browser default, cuts at descenders)</p>
+    <p class="qs-32 s"><u>The quick brown fox jumps over the lazy dog</u></p>
+    <p class="lbl">underline &mdash; skip-ink: none (uncut)</p>
+    <p class="qs-32 s noskip"><u>The quick brown fox jumps over the lazy dog</u></p>
+    <p class="lbl">one and two source pixels &mdash; the 32 draws a 2px rule, so the two above must match the lower bar</p>
+    <p class="ref"><i></i><i class="two"></i></p>
+    <p class="lbl">strikethrough</p>
+    <p class="qs-32 s"><s>The quick brown fox jumps over the lazy dog</s></p>
+  </section>
+
+</div>
+
+<script>
+  var zoomSel = document.getElementById("zoom");
+  zoomSel.addEventListener("change", function () {
+    document.documentElement.style.setProperty("--zoom", zoomSel.value);
+  });
+
+</script>
+
+</body>
+</html>

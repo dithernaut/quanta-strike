@@ -12,6 +12,7 @@ the 16) so the accents get real room: the extra row(s) hang above the em.
   ascent  = N*128 - descent             -> em top; accents above it overshoot
   win / typo / hhea = full ink extent   -> tight line spacing, no clipping
   use_typo_metrics = True
+  underline / strikeout = whole pixels  -> see decorate()
   glyph outlines untouched              -> 1 pixel stays 128 units
 
 Whatever em the source exports (N*128 already, or the taller canvas height), this
@@ -59,6 +60,83 @@ def ink_extent(font):
         top = bb[3] if top is None else max(top, bb[3])
         bot = bb[1] if bot is None else min(bot, bb[1])
     return top, bot
+
+
+def rule_thickness(N):
+    """Underline / strikeout stroke thickness in whole pixels for strike N.
+
+    One pixel up to the 20, two from the 24 on, three from the 40 — the stroke
+    stays ~1/16 of the em, so it reads the same weight at every strike.
+    """
+    return max(1, (N + 8) // 16)
+
+
+def x_height(font):
+    """Top of 'x' in em units, or None when the strike doesn't draw one.
+
+    Measured off the outline rather than read from OS/2, because FontForge only
+    fills that field in on generate — after this script has already run.
+    """
+    try:
+        g = font['x']
+    except (TypeError, KeyError):
+        return None
+    bb = g.boundingBox()
+    if bb == (0, 0, 0, 0):
+        return None
+    return bb[3]
+
+
+def underline_gap(thick_px, descent_px):
+    """Clear pixel rows between the baseline and the top of the underline.
+
+    The air grows with the stroke — 1px under a 1px rule, 3px under the 2px rule
+    on the 32 — so the underline hangs away from the baseline by the same
+    proportion at every strike instead of crowding it on the big ones.
+
+    Bounded by what the descender depth can actually hold, because the rule has
+    to stay inside the em: the emitted line-height is 1, so the first row below
+    the em belongs to the NEXT line, and a stroke there lands on its ascenders.
+    That bound is what pins the 6 — a 1px descender leaves no room for air, so
+    the gap closes to nothing and the stroke shares the descender row, where
+    skip-ink cuts it around the descenders.
+    """
+    return max(0, min(2 * thick_px - 1, descent_px - thick_px))
+
+
+def decorate(f, N, descent):
+    """Snap the underline and strikeout to the pixel grid.
+
+    On disk both position fields hold the TOP of the stroke: post
+    underlinePosition (negative below the baseline) and OS/2 yStrikeoutPosition.
+    FontForge's `upos` is the stroke's CENTER and it writes
+    top = upos + uwidth / 2, so the underline center sits half a stroke lower
+    than the top being aimed for. `os2_strikeypos` is written through verbatim.
+
+    Underline: a stroke of air under the baseline where the descender depth can
+    hold it — see underline_gap() — then the stroke.
+    Strikeout: bottom on the half x-height, so the stroke crosses the lowercase
+    a touch above centre. Chromium ignores yStrikeoutPosition and centres the
+    line on half the x-height itself, so this only lands for Firefox and for
+    apps that read the font (Word, InDesign, PDF).
+
+    Returns (underline_top_px, strikeout_top_px, thickness_px) for the log line.
+    """
+    thick_px = rule_thickness(N)
+    thick = thick_px * PIXEL
+
+    gap = underline_gap(thick_px, descent // PIXEL) * PIXEL
+    f.uwidth = thick
+    f.upos = -gap - thick // 2
+
+    xh = x_height(f)
+    xh_px = int(round(xh / PIXEL)) if xh else int(round(f.ascent / PIXEL)) // 2
+    strike_top_px = xh_px // 2 + thick_px
+
+    f.os2_strikeysize = thick
+    f.os2_strikeypos = strike_top_px * PIXEL
+
+    return -(gap // PIXEL), strike_top_px, thick_px
 
 
 def strike_of(path):
@@ -115,6 +193,8 @@ def anchor(path, N, ink_top, ink_bot):
     f.descent = descent
     f.os2_use_typo_metrics = True
 
+    under_px, strike_px, rule_px = decorate(f, N, descent)
+
     f.generate(path, flags=('opentype', 'PfEd-comments', 'no-FFTM-table'))
 
     overshoot = max(0, line_asc - ascent)
@@ -122,7 +202,8 @@ def anchor(path, N, ink_top, ink_bot):
 
     print(f"  {os.path.basename(path):34s} N={N:2d}  em {old_em}->{new_em}  "
           f"ascent={ascent} descent={descent}  line={line_asc}/{line_desc} "
-          f"(overshoot {overshoot}u={overshoot / PIXEL:.2f}px)  pixel=1.0000px")
+          f"(overshoot {overshoot}u={overshoot / PIXEL:.2f}px)  pixel=1.0000px  "
+          f"rule={rule_px}px under@{under_px}px strike@{strike_px}px")
     return True
 
 

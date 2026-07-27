@@ -98,6 +98,10 @@ You need [FontForge](https://fontforge.org/) with Python bindings
 The release number lives in [`VERSION`](VERSION). A successful build writes the
 bump back.
 
+Open [`preview.html`](preview.html) after a build to eyeball every strike and
+both variants — plain, underlined, struck through — rendered through the CSS the
+build just emitted.
+
 ### Adding a weight
 
 A strike's weights are just folders next to `regular/`. Drop the sheet in and
