@@ -141,21 +141,6 @@ everywhere else. Bind both in the same rule. Never split them.
 The `.qs-N` classes use `px`. They ignore the root font-size and stay at 1 CSS
 px per source pixel.
 
-## Underlines and strikethrough
-
-Every strike draws them one source pixel thick. The `.qs-N` and `text-*` classes
-state that stroke. Bind `--font-strike-N` yourself and you skip them, leaving
-`text-decoration-thickness: auto` — which Safari derives from the font size and
-draws thin. [`grid.css`](#pixel-grid) covers it page-wide, same as it does borders,
-or set it yourself:
-
-```css
-:where(a, u, s, ins, del, abbr) { text-decoration-thickness: var(--qs-px); }
-```
-
-Note that the `text-decoration` shorthand resets the stroke — `text-decoration-line`
-does not.
-
 ## Mono
 
 Add `.qs-mono` to a subtree. Every strike under it switches to mono. Sizes stay
@@ -191,6 +176,20 @@ the whole pair at a breakpoint.
   }
 }
 ```
+
+## Underlines
+
+Each strike draws its underline one source pixel thick. The `.qs-N` and `text-*`
+classes set that stroke. Bind `--font-strike-N` yourself and you skip them, so
+Safari falls back to its own guess and draws a thinner line.
+[`grid.css`](#pixel-grid) covers the whole page. Or set it once:
+
+```css
+:where(a, u, s, ins, del, abbr) { text-decoration-thickness: var(--qs-px); }
+```
+
+The `text-decoration` shorthand resets the stroke. Reach for
+`text-decoration-line` instead.
 
 ## What you get
 
