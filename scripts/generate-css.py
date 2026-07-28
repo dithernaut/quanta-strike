@@ -341,7 +341,8 @@ def utility_rule(cls, font_var, size):
     stroke, offset = decoration_for(size)
     return (
         f".{cls} {{ font-family: var(--{font_var}); font-size: {size}px; "
-        f"line-height: 1; text-decoration-thickness: {css_px(stroke)}; "
+        f"line-height: 1; --qs-rule: {css_px(stroke)}; "
+        f"text-decoration-thickness: {css_px(stroke)}; "
         f"text-underline-offset: {css_px(offset)}; }}\n"
     )
 
@@ -504,6 +505,7 @@ def render_scale(base, strikes, *, mono=False):
             f"    font-family: var({font_var(strike)});\n"
             f"    font-size: var(--text-{steps[0]});\n"
             f"    line-height: 1;\n"
+            f"    --qs-rule: {css_rem(stroke)};\n"
             f"    text-decoration-thickness: {css_rem(stroke)};\n"
             f"    text-underline-offset: {css_rem(offset)};\n"
             f"  }}\n"
@@ -523,6 +525,7 @@ def render_scale(base, strikes, *, mono=False):
         f"    font-family: var({font_var(base)});\n"
         "    font-size: var(--text-base);\n"
         "    line-height: 1;\n"
+        f"    --qs-rule: {css_rem(decoration_for(base)[0])};\n"
         f"    text-decoration-thickness: {css_rem(decoration_for(base)[0])};\n"
         f"    text-underline-offset: {css_rem(decoration_for(base)[1])};\n"
         "  }\n"
@@ -622,6 +625,17 @@ def render_grid():
         "@layer utilities {\n"
         + border_grid_rules()
         + "  .outline { outline-width: var(--qs-px); }\n"
+        "}\n"
+        "\n/* Underline and strikethrough, the same unit as the borders above. Left at\n"
+        "   `auto` the engines split: Blink and Gecko read the font's own stroke,\n"
+        "   WebKit derives one from font-size and lands under a source pixel.\n"
+        "   --qs-rule is what a strike class publishes as its own stroke, and it\n"
+        "   inherits, so a strike that draws thicker than one pixel (the 32) keeps\n"
+        "   its design and everything else falls back to the grid unit. */\n"
+        "@layer utilities {\n"
+        "  :where(a, u, s, ins, del, abbr) {\n"
+        "    text-decoration-thickness: var(--qs-rule, var(--qs-px));\n"
+        "  }\n"
         "}\n"
     )
 

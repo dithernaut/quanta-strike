@@ -289,6 +289,22 @@ Always anchors pixel-perfect first, then prompts `Scale factor [enter = 1, pixel
   specificity so a nested `.qs-N` still wins and passes its own stroke down. **Any new
   rule that sets the stroke needs the matching inherit rule**, or decorated children
   silently fall back.
+- **`auto` is where the engines disagree; core ships no fallback for it.** Bind
+  `--font-strike-N` without a `.qs-N` / `.text-*` class and decorated elements keep
+  `auto`: Blink and Gecko read post `underlineThickness` (correct), WebKit derives it
+  from font-size near `size/18` and draws thin — measured 1.5px where a source pixel was
+  2px. Hence "thin underline in Safari only", which looks like a bad font and is not.
+  The same net in `render_core()` **was tried and reverted** — core applies page-wide and
+  `from-font` is not a no-op on fonts the package doesn't own (Georgia at 20px: Chrome
+  2px → 0.5px, WebKit 1.5px → 1px, Firefox unchanged, which is why grid.css states a
+  LENGTH instead). It lives in **`grid.css`** now, which is opt-in and already page-wide:
+  `:where(a, u, s, ins, del, abbr) { text-decoration-thickness: var(--qs-rule,
+  var(--qs-px)); }`. `--qs-rule` is the stroke a strike class publishes for itself —
+  a custom property, so it inherits down to the `<a>` that draws the line, and the 32
+  keeps its 2px design while everything else falls back to the grid unit. **A new strike
+  rule that sets the stroke should set `--qs-rule` to match.**
+  Also: a `text-decoration` shorthand resets the stroke to `auto` and outranks
+  `:where()`; `text-decoration-line` doesn't.
 - **Underline / strikethrough**: the fonts carry whole-pixel metrics, but only Chromium
   and WebKit read them — Firefox draws its own line and ignores `from-font` on both
   `text-decoration-thickness` and `text-underline-offset` (measured: its `auto` and
