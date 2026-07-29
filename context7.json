@@ -1,0 +1,29 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "quanta-strike",
+  "description": "Hand-drawn pixel typeface: one strike per size, with CSS that keeps type, spacing, and borders on the same pixel grid.",
+  "folders": ["package", "docs"],
+  "excludeFolders": [
+    "patcher",
+    "src",
+    "scripts",
+    "build",
+    "node_modules",
+    "./.github"
+  ],
+  "excludeFiles": [
+    "AGENTS.md",
+    "OFL.txt",
+    "LICENSE.md"
+  ],
+  "rules": [
+    "Prefer the Tailwind happy path: `@import \"quanta-strike/base-12.css\"` (or another base-N). That loads fonts, type scale, pixel grid, and zoom together.",
+    "Size and family are a pair. Use each strike only at its native size (font-size = N px). Never change font-size without also changing the matching font-family / strike class.",
+    "Do not mix locked `.qs-N` classes with a `base-N` preset or `--qs-zoom`. `.qs-N` ignores zoom and puts a second pixel size on the page.",
+    "Prefer integer `--qs-zoom` for sharp pixels on every display. `1.5` is fine on retina; avoid awkward fractions like `1.75`.",
+    "For plain CSS without the scale system, import `quanta-strike` and use `.qs-N` / `.qs-N-mono` classes.",
+    "Mono is a separate family, not a weight of proportional. Use `base-N-mono`, `mono.css`, or `.qs-mono` on a subtree — not `font-family: …-mono` alone without the matching size.",
+    "Responsive type: do not use clamp() across strikes. Swap the whole size+family pair at a breakpoint, or change `--qs-zoom` to scale every strike together.",
+    "Avoid the `text-decoration` shorthand — it resets thickness to `auto`. Use `text-decoration-line` and let grid.css / strike classes set thickness."
+  ]
+}
