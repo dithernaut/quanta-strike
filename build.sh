@@ -117,18 +117,13 @@ SPINNER=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
 SPINNER_I=0
 BAR_WIDTH=22
 
-# Progress is counted in weighted ticks. Most run_step calls are weight 1;
-# main() precomputes the total from the selected strikes and options so the
-# bar tracks wall time rather than step count. Nerd Font patching is far
-# slower than everything else, so those steps get a larger weight (see the
-# "Budget the progress bar" block) — otherwise the gauge sits near done for
-# most of the remaining build.
+# Progress ticks. Most steps weigh 1; nerd steps weigh more (see budget block).
 PROGRESS_TOTAL=0
 PROGRESS_DONE=0
 PROGRESS_PHASE=""
 PROGRESS_LABEL=""
-PROGRESS_STEP_WEIGHT=1   # consumed (and reset to 1) by the next run_step
-NERD_STEP_WEIGHT=1       # per-family weight, set when budgeting
+PROGRESS_STEP_WEIGHT=1
+NERD_STEP_WEIGHT=1
 BAR_ON_SCREEN=false
 
 bar_enabled() {
@@ -263,9 +258,8 @@ print_line() {
 # Run one build step with its output captured, ticking the progress bar.
 # Quiet mode animates the bar and stays silent unless the step fails, in which
 # case the captured output is dumped. Verbose runs it inline, unfiltered.
-# The step's weight is PROGRESS_STEP_WEIGHT (default 1); it is reset to 1 after
-# being read so callers only set it when a step should count for more than one
-# tick. Usage: [PROGRESS_STEP_WEIGHT=N] run_step "<label>" <command> [args...]
+# Weight defaults to 1; set PROGRESS_STEP_WEIGHT beforehand for heavier steps.
+# Usage: run_step "<label>" <command> [args...]
 run_step() {
     local label="$1"; shift
     local weight=$PROGRESS_STEP_WEIGHT
@@ -1036,10 +1030,8 @@ run_nerd_fonts_generator() {
 
     # One invocation per family rather than one for the lot: this is by far the
     # slowest step, and per-family calls let the progress bar name the strike
-    # being patched. Each call is weighted (NERD_STEP_WEIGHT) so the gauge
-    # advances with wall time instead of jumping to ~85% before this phase.
-    # The generator only ever adds to its output dir (it diffs the folder
-    # before/after each font), so splitting the run is safe.
+    # being patched. The generator only ever adds to its output dir (it diffs
+    # the folder before/after each font), so splitting the run is safe.
     local nerd_dir="${TTF_GROUP_DIR}-nerd"
     print_header "Nerd Fonts ${DIM}(mono only) → $nerd_dir${NC}"
     PROGRESS_PHASE="nerd"
@@ -1731,11 +1723,10 @@ main() {
         exit 0
     fi
 
-    # Budget the progress bar. Most run_step calls are one tick; Nerd Font
-    # patching is weighted so it owns ~90% of the bar when enabled (it owns
-    # roughly that share of wall time). Per variant — one png-to-ttf per
-    # weight, a source verify, one metadata pass per strike, optional
-    # features, anchor, optional scale, an output verify.
+    # Budget the progress bar. Per variant — one png-to-ttf per weight, a source
+    # verify, one metadata pass per strike, optional features, anchor, optional
+    # scale, an output verify. Nerd steps are weighted ~9× the preceding total
+    # so they own ~90% of the bar (matching wall time).
     local per_variant=$(( style_count + 1 + ${#selected_families[@]} + 1 + 1 ))
     [ "$do_small_caps" = true ] && per_variant=$((per_variant + 1))
     [ "$do_onum" = true ] && per_variant=$((per_variant + 1))
@@ -1747,8 +1738,6 @@ main() {
     [ "$do_woff2" = true ] && PROGRESS_TOTAL=$(( PROGRESS_TOTAL + 2 ))
     NERD_STEP_WEIGHT=1
     if [ "$do_nerd" = true ]; then
-        # nerd_ticks / (base + nerd_ticks) ≈ 90%  ⇒  nerd_ticks = 9 × base
-        # Spread across families (ceil) so each strike advances the bar evenly.
         local nerd_n=${#selected_families[@]}
         local nerd_ticks=$(( PROGRESS_TOTAL * 9 ))
         NERD_STEP_WEIGHT=$(( (nerd_ticks + nerd_n - 1) / nerd_n ))
