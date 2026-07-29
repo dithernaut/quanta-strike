@@ -743,7 +743,7 @@ def render_grid():
         " * reset a preset's default.\n"
         " *\n"
         " *   @import \"tailwindcss\";\n"
-        " *   @import \"quanta-strike/base-12.css\";  /* pulls this in */\n"
+        " *   @import \"quanta-strike/base-12.css\";  (pulls this in)\n"
         " *\n"
         " * Or alone, for hand-rolled setups:\n"
         " *   @import \"quanta-strike/grid.css\";\n"
