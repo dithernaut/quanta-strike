@@ -20,39 +20,23 @@ family, so font-weight selects it and the classes below never change:
 
 It writes:
 
-    quanta-strike.css            every strike, both variants
-    quanta-strike-mono.css       every strike, mono only (no proportional faces)
-    quanta-strike-16.css         one strike, both variants
-    quanta-strike-16-mono.css    one strike, mono only
-    scale/base-N.css             Tailwind type-scale (proportional via --font-strike-N)
-    scale/base-N-mono.css        same ladder, mono via --font-strike-N-mono
-    grid.css                     Tailwind spacing grid (--spacing = one source pixel)
+    fonts.css                @font-face + --font-strike-N vars (no classes)
+    quanta-strike.css        fonts.css + locked .qs-N classes (px, ignore zoom)
+    utilities.css            alias of quanta-strike.css
+    mono.css                 mono faces + vars only
+    utilities-mono.css       mono.css + locked .qs-N / .qs-N-mono classes
+    N.css / N-mono.css       one strike (faces + locked classes)
+    base-N.css               Tailwind preset: fonts + grid + zoom + theme
+    base-N-mono.css          same, mono faces
+    scale/base-N.css         @import alias of ../base-N.css
+    grid.css                 --qs-px + spacing/radius/tracking + border/ring snaps
 
-Each file holds @font-face blocks, --font-strike-N custom properties, and the
-paired utility classes:
+--qs-px is the system unit (one source pixel). --qs-zoom is the user dial.
+grid.css owns --qs-px; base-N owns --qs-zoom. Every theme length is
+calc(var(--qs-px) * N). See docs/CSS-API-PLAN.md.
 
-    .qs-16      { font-family: "quanta-strike-16";      font-size: 16px; }
-    .qs-16-mono { font-family: "quanta-strike-16-mono"; font-size: 16px; }
-
-The locked classes also pin the underline and strikeout to whole pixels, the
-same stroke anchor-em.py writes into post and OS/2. Chromium and WebKit would
-pick that up from the font on their own; Firefox draws its own line and ignores
-from-font, so the stroke is stated as a length here to keep all three engines on
-the grid. px in the locked classes, which sit on a px font-size; rem in the
-scale presets, where the text zooms with html font-size and the rule has to zoom
-with it. One source pixel is 1/16rem either way.
-
-The mono-only entry points exist so a code/TUI project can import mono without
-pulling proportional faces. In those files --font-strike-N also points at mono,
-so existing .qs-N / scale consumers keep working.
-
-line-height is 1 so a line box is a whole number of pixels, which keeps leading on
-the grid too. Override it per project if you want more air.
-
-The scale presets are opt-in Tailwind @theme files. Rem sizes are always N/16 so
-html { font-size: 100% } keeps 1 source pixel = 1 CSS px; picking base-12 only
-moves which strike is text-base, it does not change the rem math. See
-scale_map() for how neighbors fill the ladder.
+Locked .qs-N classes stay in px and do NOT follow --qs-zoom — they are the
+manual/plain-CSS path. On a base-N page, use text-* instead.
 
 URLs default to the variant-folder layout above, relative to the output dir. Use
 --flat when every woff2 sits in one folder, and --url-prefix to point at wherever
@@ -62,7 +46,7 @@ Usage:
     scripts/generate-css.py <woff2-dir> [--out DIR] [--url-prefix P] [--flat]
 
     scripts/generate-css.py build/woff2
-    scripts/generate-css.py build/woff2 --out package/css --flat --url-prefix ../fonts/
+    scripts/generate-css.py build/woff2 --out package --flat --url-prefix fonts/
 """
 
 import argparse
@@ -100,9 +84,8 @@ CSS_WEIGHTS = {
 PROP_GROUP = "quanta-strike"
 MONO_GROUP = "quanta-strike-mono"
 
-# Rem root for the type scale. Browser default 1rem = 16px, so strike N is
-# always N/16 rem. Choosing a different "base" strike only remaps semantic
-# steps — it does not change this divisor (that would break the zoom story).
+# Rem root for the type scale. Browser default 1rem = 16px, so one source pixel
+# is 1/16rem at --qs-zoom: 1. Zoom multiplies --qs-px; it does not change this.
 REM_ROOT = 16
 
 # Tailwind steps outward from base. Nearest-to-base first.
@@ -113,6 +96,30 @@ SCALE_ABOVE = ("lg", "xl", "2xl", "3xl", "4xl", "5xl", "6xl", "7xl", "8xl", "9xl
 # (same trick the site uses: text-5xl+ → strike 32 when 4xl already is 32).
 SCALE_STEP_ORDER = ("4xs", "3xs", "2xs", "xs", "sm", "base", "lg", "xl",
                     "2xl", "3xl", "4xl", "5xl", "6xl", "7xl", "8xl", "9xl")
+
+# Radius steps → source-pixel multiples. Matches Tailwind's rem defaults at
+# zoom 1 (0.125rem = 2px, …) so rounded-* sizes are unchanged until zoom moves.
+RADIUS_STEPS = (
+    ("xs", 2),
+    ("sm", 4),
+    ("md", 6),
+    ("lg", 8),
+    ("xl", 12),
+    ("2xl", 16),
+    ("3xl", 24),
+    ("4xl", 32),
+)
+
+# Tracking: stock values are em fractions and push glyph origins off the grid.
+# Integer units (or 0) only.
+TRACKING_STEPS = (
+    ("tighter", -1),
+    ("tight", 0),
+    ("normal", 0),
+    ("wide", 1),
+    ("wider", 2),
+    ("widest", 4),
+)
 
 HEADER = """/* quanta-strike — generated by scripts/generate-css.py. Do not edit by hand.
  *
@@ -211,10 +218,10 @@ def faces(family, entries, url_prefix, flat):
 
 
 def render_core(strikes, sizes, url_prefix, flat, *, mono_only=False):
-    """The unopinionated layer: @font-face, the vars, and (when both) the mono swap.
+    """Faces + vars only. No utility classes, no --qs-rule.
 
-    No utility classes here. A project with its own type scale wants exactly this
-    and nothing more.
+    fonts.css / mono.css are this layer. A project with its own type scale wants
+    exactly this and nothing more.
 
     mono_only=True emits only mono faces. --font-strike-N points at mono too, so
     consumers that already bind on the un-suffixed var get mono without rewriting.
@@ -234,7 +241,7 @@ def render_core(strikes, sizes, url_prefix, flat, *, mono_only=False):
         files = strikes[size]
         if mono_only:
             if "mono" in files:
-                # Primary var → mono so .qs-N / scale/base-N.css keep working.
+                # Primary var → mono so .qs-N / base-N keep working.
                 out.append(f'  --font-strike-{size}: "quanta-strike-{size}-mono";\n')
                 out.append(f'  --font-strike-{size}-mono: "quanta-strike-{size}-mono";\n')
         else:
@@ -319,24 +326,37 @@ def css_px(value):
     return f"{int(value)}px" if value == int(value) else f"{value}px"
 
 
-def css_rem(value):
-    """The same length in rem, on the scale's 16px root (see REM_ROOT).
+def rem_size(strike):
+    """CSS rem literal for a strike: always strike/16 (see REM_ROOT)."""
+    value = Fraction(strike, REM_ROOT)
+    if value.denominator == 1:
+        return f"{value.numerator}rem"
+    decimal = float(value)
+    as_str = f"{decimal:.10f}".rstrip("0").rstrip(".")
+    return f"{as_str}rem"
 
-    Zero has no unit to argue about, and 0rem reads like a mistake.
-    """
-    if not value:
+
+def grid_length(n):
+    """N source pixels as a CSS length. Follows --qs-zoom via --qs-px."""
+    if n == 0:
         return "0"
-    rem = round(value / REM_ROOT, 6)
-    text = f"{rem:.6f}".rstrip("0").rstrip(".")
-    return f"{text}rem"
+    if n == 1:
+        return "var(--qs-px)"
+    return f"calc(var(--qs-px) * {n})"
+
+
+def decoration_lengths(strike):
+    """(stroke, offset) as grid lengths for a strike's native metrics."""
+    stroke, offset = decoration_for(strike)
+    return grid_length(int(round(stroke))), grid_length(int(round(offset)))
 
 
 def utility_rule(cls, font_var, size):
     """One strike's locked class: family, size and rule metrics bound together.
 
-    text-underline-offset is the gap from the baseline to the TOP of the stroke,
-    the same thing post underlinePosition holds, so this restates the font
-    rather than second-guessing it.
+    Sizes are px on purpose — locked mode ignores --qs-zoom and the root
+    font-size. text-underline-offset is the gap from the baseline to the TOP of
+    the stroke, the same thing post underlinePosition holds.
     """
     stroke, offset = decoration_for(size)
     return (
@@ -350,7 +370,7 @@ def utility_rule(cls, font_var, size):
 def inherit_thickness_rule(classes):
     """Push the stroke down to the elements that actually draw a decoration.
 
-    text-decoration-thickness does NOT inherit (CSS Text Decoration 4), unlike
+    text-decoration-thickness does NOT inherit (CSS Text Decorations 4), unlike
     text-underline-offset, which does. So an <a>, <u>, <s> or <del> inside a
     strike computes `auto` and the engine picks its own stroke — a hairline in
     WebKit, something else again in Gecko and Blink. Setting it back to inherit
@@ -367,23 +387,13 @@ def inherit_thickness_rule(classes):
     )
 
 
-def render_utilities(strikes, sizes, core_import, *, mono_only=False):
-    """The opinionated layer: one class per strike, family and size bound together.
+def render_utilities(strikes, sizes, *, mono_only=False):
+    """Locked .qs-N classes: family and size bound together, sizes in px.
 
-    Sizes are in px on purpose. This is the locked mode, so a strike renders at
-    exactly 1 CSS px per source pixel no matter what the root font-size does.
-    Projects that want the uniform zoom knob use the vars and their own rem scale
-    instead.
-
-    mono_only=True only emits classes for strikes that have a mono face. .qs-N
-    still works because the mono core points --font-strike-N at mono.
+    Projects that want the uniform zoom knob use a base-N preset (text-*) instead.
     """
-    out = []
+    out = ["\n/* Family and size together. Never split them. */\n"]
     classes = []
-    if core_import:
-        out.append(f'@import "{core_import}";\n\n')
-        out.append(HEADER)
-    out.append("\n/* Family and size together. Never split them. */\n")
 
     def emit(cls, var, size):
         classes.append(cls)
@@ -405,17 +415,6 @@ def render_utilities(strikes, sizes, core_import, *, mono_only=False):
     if classes:
         out.append(inherit_thickness_rule(classes))
     return "".join(out)
-
-
-def rem_size(strike):
-    """CSS rem literal for a strike: always strike/16 (see REM_ROOT)."""
-    value = Fraction(strike, REM_ROOT)
-    if value.denominator == 1:
-        return f"{value.numerator}rem"
-    # Prefer a short decimal when it terminates cleanly (0.75, 1.125, …).
-    decimal = float(value)
-    as_str = f"{decimal:.10f}".rstrip("0").rstrip(".")
-    return f"{as_str}rem"
 
 
 def scale_map(base, strikes):
@@ -449,21 +448,36 @@ def scale_map(base, strikes):
     return [(step, mapping[step]) for step in SCALE_STEP_ORDER if step in mapping]
 
 
-def render_scale(base, strikes, *, mono=False):
-    """Optional Tailwind type-scale preset: @theme sizes + paired text-* utilities.
+def zoom_default(base):
+    """(desktop --qs-zoom, mobile --qs-zoom or None).
 
-    Does not import the core CSS — the consumer loads quanta-strike (or
-    quanta-strike/mono.css) first so the --font-strike-N vars exist. Does not
-    touch html font-size (that's the zoom knob). body gets the base pair so
-    unclassed copy stays sharp.
-
-    mono=True binds text-* / body to --font-strike-N-mono, so the scale is mono
-    even when the combined core (both variants) is loaded.
+    Integers for unconditional defaults (exact on every DPR). base-12 alone ships
+    a 1.5 mobile step — retina-only, and the only preset where 1.5 lands useful
+    (18px). See docs/CSS-API-PLAN.md § Default zoom per base.
     """
-    scale = scale_map(base, strikes)
+    if base <= 12:
+        desktop = 2
+    else:
+        desktop = 1
+    mobile = 1.5 if base == 12 else None
+    return desktop, mobile
+
+
+def render_scale(base, strikes, *, mono=False):
+    """Full Tailwind preset: fonts + grid + zoom + theme + paired text-* utilities.
+
+    Imports the fonts entry and grid.css, sets only --qs-zoom (never --qs-px),
+    and derives every --text-* from --qs-px. body gets the base pair so unclassed
+    copy stays sharp.
+
+    mono=True binds text-* / body to --font-strike-N-mono and imports mono.css.
+    """
+    scale = scale_map(base, list(strikes))
     suffix = "-mono" if mono else ""
-    core_import = "quanta-strike/mono.css" if mono else "quanta-strike"
+    fonts_file = "mono.css" if mono else "quanta-strike.css"
+    import_path = f"quanta-strike/base-{base}{suffix}.css"
     variant_note = " (mono)" if mono else ""
+    desktop, mobile = zoom_default(base)
 
     def font_var(n):
         return f"--font-strike-{n}-mono" if mono else f"--font-strike-{n}"
@@ -472,20 +486,34 @@ def render_scale(base, strikes, *, mono=False):
         "/* quanta-strike — generated by scripts/generate-css.py. Do not edit by hand.\n"
         " *\n"
         f" * Type scale with strike {base} as text-base{variant_note}.\n"
-        " * Rem sizes are always N/16, so html { font-size: 100% } keeps\n"
-        " * 1 source pixel = 1 CSS px. Zoom with html { font-size: …% };\n"
-        " * do not change the rem values.\n"
+        " * Every length derives from --qs-px. Zoom with --qs-zoom (this file\n"
+        " * sets the default). Setting --qs-zoom yourself replaces every branch,\n"
+        " * mobile included.\n"
         " *\n"
         " *   @import \"tailwindcss\";\n"
-        f" *   @import \"{core_import}\";\n"
-        f" *   @import \"quanta-strike/scale/base-{base}{suffix}.css\";\n"
+        f" *   @import \"{import_path}\";\n"
+        " *\n"
+        " * If you imported a base-N preset, use text-*. Don't use .qs-N — it is\n"
+        " * the manual escape hatch and ignores --qs-zoom.\n"
         " *\n"
         " * https://github.com/dithernaut/quanta-strike\n"
         " */\n"
-        "\n@theme {\n",
+        "\n"
+        f'@import "./{fonts_file}";\n'
+        '@import "./grid.css";\n'
+        "\n"
+        "@layer theme {\n"
+        f"  :root {{ --qs-zoom: {desktop}; }}\n"
     ]
+    if mobile is not None:
+        lines.append(
+            f"  @media (width < 48rem) {{ :root {{ --qs-zoom: {mobile}; }} }}\n"
+        )
+    lines.append("}\n")
+
+    lines.append("\n@theme {\n")
     for step, strike in scale:
-        lines.append(f"  --text-{step}: {rem_size(strike)};\n")
+        lines.append(f"  --text-{step}: {grid_length(strike)};\n")
         lines.append(f"  --text-{step}--line-height: 1;\n")
     lines.append("}\n")
 
@@ -493,46 +521,55 @@ def render_scale(base, strikes, *, mono=False):
         "\n/* Family and size together. text-* alone would drop the strike. */\n"
         "@layer utilities {\n"
     )
-    # Group aliases that share a strike onto one rule where consecutive.
     by_strike = {}
     for step, strike in scale:
         by_strike.setdefault(strike, []).append(step)
     for strike, steps in by_strike.items():
         selectors = ",\n".join(f"  .text-{step}" for step in steps)
-        stroke, offset = decoration_for(strike)
+        rule, offset = decoration_lengths(strike)
         lines.append(
             f"{selectors} {{\n"
             f"    font-family: var({font_var(strike)});\n"
             f"    font-size: var(--text-{steps[0]});\n"
             f"    line-height: 1;\n"
-            f"    --qs-rule: {css_rem(stroke)};\n"
-            f"    text-decoration-thickness: {css_rem(stroke)};\n"
-            f"    text-underline-offset: {css_rem(offset)};\n"
+            f"    --qs-rule: {rule};\n"
+            f"    text-decoration-thickness: {rule};\n"
+            f"    text-underline-offset: {offset};\n"
             f"  }}\n"
         )
-    # text-decoration-thickness does not inherit, so the <a> or <s> inside a
-    # text-* would compute `auto` and get the engine's own stroke. See
-    # inherit_thickness_rule(); :where() keeps a nested text-* winning.
     text_sel = ", ".join(f".text-{step}" for step, _ in scale)
     lines.append(
         f"  :where({text_sel}) * {{ text-decoration-thickness: inherit; }}\n"
     )
     lines.append("}\n")
 
+    body_rule, body_offset = decoration_lengths(base)
     lines.append(
         "\n@layer base {\n"
         "  body {\n"
         f"    font-family: var({font_var(base)});\n"
         "    font-size: var(--text-base);\n"
         "    line-height: 1;\n"
-        f"    --qs-rule: {css_rem(decoration_for(base)[0])};\n"
-        f"    text-decoration-thickness: {css_rem(decoration_for(base)[0])};\n"
-        f"    text-underline-offset: {css_rem(decoration_for(base)[1])};\n"
+        f"    --qs-rule: {body_rule};\n"
+        f"    text-decoration-thickness: {body_rule};\n"
+        f"    text-underline-offset: {body_offset};\n"
         "  }\n"
         "  :where(body) * { text-decoration-thickness: inherit; }\n"
         "}\n"
     )
     return "".join(lines)
+
+
+def render_scale_alias(base, *, mono=False):
+    """Thin re-export so quanta-strike/scale/base-N.css keeps working."""
+    suffix = "-mono" if mono else ""
+    return (
+        "/* quanta-strike — generated by scripts/generate-css.py. Do not edit by hand.\n"
+        " * Alias of ../base-"
+        f"{base}{suffix}.css — prefer @import \"quanta-strike/base-{base}{suffix}.css\".\n"
+        " */\n"
+        f'@import "../base-{base}{suffix}.css";\n'
+    )
 
 
 # Tailwind's border-width utilities, suffix → the properties they set. The bare
@@ -554,20 +591,10 @@ BORDER_SIDES = (
 BORDER_WIDTHS = (1, 2, 4, 8)
 
 
-def grid_length(n):
-    """N source pixels as a CSS length. 1 needs no calc()."""
-    return "var(--qs-px)" if n == 1 else f"calc(var(--qs-px) * {n})"
-
-
 def border_grid_rules():
-    """Every border-width utility — all sides, axes and logical edges.
-
-    Stock Tailwind writes these as literal px, so they ignore the zoom that the
-    strikes and --spacing follow.
-    """
+    """Every border-width utility — all sides, axes and logical edges."""
     lines = []
     for suffix, props in BORDER_SIDES:
-        # Bare class first (.border, .border-l), then the numbered steps.
         for name, n in [(f"border{suffix}", 1)] + [
             (f"border{suffix}-{w}", w) for w in BORDER_WIDTHS
         ]:
@@ -576,56 +603,185 @@ def border_grid_rules():
     return "".join(lines)
 
 
+def outline_grid_rules():
+    lines = ["  .outline { outline-width: var(--qs-px); }\n"]
+    for w in BORDER_WIDTHS:
+        lines.append(f"  .outline-{w} {{ outline-width: {grid_length(w)}; }}\n")
+    return "".join(lines)
+
+
+def grid_expr(n):
+    """N source pixels as a calc()-embeddable expression (no outer calc)."""
+    if n == 1:
+        return "var(--qs-px)"
+    return f"var(--qs-px) * {n}"
+
+
+def ring_grid_rules():
+    """Ring widths are an internal box-shadow — not themeable. Override in place."""
+    lines = []
+    for name, n in [("ring", 1)] + [(f"ring-{w}", w) for w in BORDER_WIDTHS]:
+        expr = grid_expr(n)
+        lines.append(
+            f"  .{name} {{\n"
+            f"    --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 "
+            f"calc({expr} + var(--tw-ring-offset-width)) "
+            f"var(--tw-ring-color, currentcolor);\n"
+            f"    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), "
+            f"var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);\n"
+            f"  }}\n"
+        )
+    for w in BORDER_WIDTHS:
+        lines.append(
+            f"  .ring-offset-{w} {{\n"
+            f"    --tw-ring-offset-width: {grid_length(w)};\n"
+            f"    --tw-ring-offset-shadow: var(--tw-ring-inset,) 0 0 0 "
+            f"var(--tw-ring-offset-width) var(--tw-ring-offset-color);\n"
+            f"  }}\n"
+        )
+    return "".join(lines)
+
+
+def divide_grid_rules():
+    """divide-x / divide-y set child border widths; not covered by BORDER_SIDES."""
+    lines = []
+    for axis, (start, end, reverse) in (
+        ("x", ("border-inline-start-width", "border-inline-end-width",
+               "tw-divide-x-reverse")),
+        ("y", ("border-top-width", "border-bottom-width",
+               "tw-divide-y-reverse")),
+    ):
+        for name, n in [(f"divide-{axis}", 1)] + [
+            (f"divide-{axis}-{w}", w) for w in BORDER_WIDTHS
+        ]:
+            expr = grid_expr(n)
+            if axis == "x":
+                style = (
+                    "    border-inline-style: var(--tw-border-style);\n"
+                )
+            else:
+                style = (
+                    "    border-bottom-style: var(--tw-border-style);\n"
+                    "    border-top-style: var(--tw-border-style);\n"
+                )
+            lines.append(
+                f"  :where(.{name} > :not(:last-child)) {{\n"
+                f"    --{reverse}: 0;\n"
+                f"{style}"
+                f"    {start}: calc(({expr}) * var(--{reverse}));\n"
+                f"    {end}: calc(({expr}) * calc(1 - var(--{reverse})));\n"
+                f"  }}\n"
+            )
+    return "".join(lines)
+
+
+def shadow_theme_rules():
+    """Shadow offsets on the grid; blur/spread left soft (no hard edge)."""
+    px = "var(--qs-px)"
+    p = grid_length  # shorthand
+    return (
+        f"  --shadow-2xs: 0 {px} rgb(0 0 0 / 0.05);\n"
+        f"  --shadow-xs: 0 {px} {p(2)} 0 rgb(0 0 0 / 0.05);\n"
+        f"  --shadow-sm: 0 {px} {p(3)} 0 rgb(0 0 0 / 0.1), "
+        f"0 {px} {p(2)} {p(-1)} rgb(0 0 0 / 0.1);\n"
+        f"  --shadow-md: 0 {p(4)} {p(6)} {p(-1)} rgb(0 0 0 / 0.1), "
+        f"0 {p(2)} {p(4)} {p(-2)} rgb(0 0 0 / 0.1);\n"
+        f"  --shadow-lg: 0 {p(10)} {p(15)} {p(-3)} rgb(0 0 0 / 0.1), "
+        f"0 {p(4)} {p(6)} {p(-4)} rgb(0 0 0 / 0.1);\n"
+        f"  --shadow-xl: 0 {p(20)} {p(25)} {p(-5)} rgb(0 0 0 / 0.1), "
+        f"0 {p(8)} {p(10)} {p(-6)} rgb(0 0 0 / 0.1);\n"
+        f"  --shadow-2xl: 0 {p(25)} {p(50)} {p(-12)} rgb(0 0 0 / 0.25);\n"
+        f"  --shadow: 0 {px} {p(3)} 0 rgb(0 0 0 / 0.1), "
+        f"0 {px} {p(2)} {p(-1)} rgb(0 0 0 / 0.1);\n"
+        f"  --shadow-inner: inset 0 {p(2)} {p(4)} 0 rgb(0 0 0 / 0.05);\n"
+        f"  --inset-shadow-2xs: inset 0 {px} rgb(0 0 0 / 0.05);\n"
+        f"  --inset-shadow-xs: inset 0 {px} {px} rgb(0 0 0 / 0.05);\n"
+        f"  --inset-shadow-sm: inset 0 {p(2)} {p(4)} rgb(0 0 0 / 0.05);\n"
+        f"  --drop-shadow-xs: 0 {px} {px} rgb(0 0 0 / 0.05);\n"
+        f"  --drop-shadow-sm: 0 {px} {p(2)} rgb(0 0 0 / 0.15);\n"
+        f"  --drop-shadow-md: 0 {p(3)} {p(3)} rgb(0 0 0 / 0.12);\n"
+        f"  --drop-shadow-lg: 0 {p(4)} {p(4)} rgb(0 0 0 / 0.15);\n"
+        f"  --drop-shadow-xl: 0 {p(9)} {p(7)} rgb(0 0 0 / 0.1);\n"
+        f"  --drop-shadow-2xl: 0 {p(25)} {p(25)} rgb(0 0 0 / 0.15);\n"
+        f"  --drop-shadow: 0 {px} {p(2)} rgb(0 0 0 / 0.1), "
+        f"0 {px} {px} rgb(0 0 0 / 0.06);\n"
+    )
+
+
 def render_grid():
-    """Optional Tailwind pixel grid. Base-independent, no strike data needed.
+    """Pixel grid: --qs-px, derived theme lengths, border/ring/divide snaps.
 
-    Sizes do NOT change. Tailwind's default --spacing (0.25rem) is already
-    exactly 4 source pixels, so the stock scale is grid-aligned at every step and
-    stays that way under zoom — restating it in --qs-px only makes the grid the
-    source of truth, so re-pointing --qs-px moves spacing with it.
+    Owns --qs-px only — never --qs-zoom. The zoom default lives in base-N's
+    @layer theme, and --qs-px reads it via var(--qs-zoom, 1). Disjoint ownership
+    makes import order irrelevant: re-importing grid.css after a base-N cannot
+    reset zoom.
 
-    The real off-grid offenders are the px-literal widths (border, outline).
-    Those stay literal px while the page zooms, so at font-size: 200% a 1px
-    border is half a source pixel. Pinned to --qs-px here. Rings are left alone
-    on purpose: v4 builds them from an internal shadow, not a width property.
-
-    --qs-px lives in :root, not @theme, so it survives Tailwind's tree-shaking
-    and is available for hand-rolled lengths.
+    --container-* stays static rem. Deriving it breaks Tailwind v4 container-query
+    variants (@md:, @min-md:) — var() is illegal inside @container conditions, and
+    the compiler silently drops those utilities. Use max-w-[calc(var(--qs-px)*N)]
+    for grid-exact widths.
     """
-    rem = rem_size(1)  # one source pixel = 1/16rem, same divisor as the scale
+    rem = rem_size(1)
+    radius_lines = "".join(
+        f"  --radius-{name}: {grid_length(n)};\n" for name, n in RADIUS_STEPS
+    )
+    radius_lines += f"  --radius: {grid_length(4)};\n"
+    tracking_lines = "".join(
+        f"  --tracking-{name}: {grid_length(n)};\n" for name, n in TRACKING_STEPS
+    )
+    leading_lines = "".join(
+        f"  --leading-{name}: 1;\n"
+        for name in ("tight", "snug", "normal", "relaxed", "loose")
+    )
+
     return (
         "/* quanta-strike — generated by scripts/generate-css.py. Do not edit by hand.\n"
         " *\n"
-        " * Optional pixel grid. Spacing keeps Tailwind's default sizes — 0.25rem is\n"
-        " * already exactly 4 source pixels, so p-4 is still 16px — and is restated\n"
-        " * in source pixels so the grid is the source of truth. What this really\n"
-        " * fixes is the px-literal widths (border, outline): they ignore zoom,\n"
-        " * so at html { font-size: 200% } a 1px border is half a source pixel.\n"
-        " * Base-independent; pairs with any base-N.\n"
+        " * Pixel grid. --qs-px is one source pixel; every length here is an integer\n"
+        " * multiple of it. --qs-zoom (set by a base-N preset, or by you) multiplies\n"
+        " * the unit. This file never declares --qs-zoom — re-importing it cannot\n"
+        " * reset a preset's default.\n"
         " *\n"
         " *   @import \"tailwindcss\";\n"
-        " *   @import \"quanta-strike\";\n"
-        " *   @import \"quanta-strike/scale/base-16.css\";\n"
+        " *   @import \"quanta-strike/base-12.css\";  /* pulls this in */\n"
+        " *\n"
+        " * Or alone, for hand-rolled setups:\n"
         " *   @import \"quanta-strike/grid.css\";\n"
         " *\n"
         " * https://github.com/dithernaut/quanta-strike\n"
         " */\n"
         "\n:root {\n"
-        f"  --qs-px: {rem}; /* one source pixel = 1 CSS px at html {{ font-size: 100% }} */\n"
+        f"  --qs-px: calc({rem} * var(--qs-zoom, 1)); "
+        "/* one source pixel; follows --qs-zoom */\n"
         "}\n"
         "\n@theme {\n"
-        "  /* Same as Tailwind's 0.25rem default. Sizes are unchanged; the step is\n"
-        "     just expressed as 4 source pixels so it follows --qs-px. */\n"
+        "  /* Same as Tailwind's 0.25rem default at zoom 1. Expressed in source\n"
+        "     pixels so it follows --qs-px. */\n"
         "  --spacing: calc(var(--qs-px) * 4);\n"
+        "\n"
+        "  /* Integer radii — keep rounded-* doing something; 0 everywhere is\n"
+        "     the more honest pixel default if you want it. */\n"
+        f"{radius_lines}"
+        "\n"
+        "  /* Letter-spacing must be 0 or whole units — fractional em tracking\n"
+        "     pushes glyph origins off the grid and blurs every glyph after the first. */\n"
+        f"{tracking_lines}"
+        "\n"
+        "  /* Unitless leading on the grid. Presets also force line-height: 1. */\n"
+        f"{leading_lines}"
+        "\n"
+        "  /* Shadow offsets on the grid; blur stays soft. */\n"
+        f"{shadow_theme_rules()}"
         "}\n"
-        "\n/* px-literal widths: the only part of stock Tailwind that leaves the grid\n"
-        "   when the page zooms. One source pixel is the thinnest honest line.\n"
-        "   N means N source pixels; other numbers stay literal px — use\n"
-        "   border-[length:calc(var(--qs-px)*3)] or var(--qs-px) by hand. */\n"
+        "\n/* px-literal widths: stock Tailwind leaves the grid when --qs-px grows.\n"
+        "   One source pixel is the thinnest honest line. N means N source pixels;\n"
+        "   other numbers stay literal px — use border-[length:calc(var(--qs-px)*3)]. */\n"
         "@layer utilities {\n"
         + border_grid_rules()
-        + "  .outline { outline-width: var(--qs-px); }\n"
-        "}\n"
+        + outline_grid_rules()
+        + ring_grid_rules()
+        + divide_grid_rules()
+        + "}\n"
         "\n/* Underline and strikethrough, the same unit as the borders above. Left at\n"
         "   `auto` the engines split: Blink and Gecko read the font's own stroke,\n"
         "   WebKit derives one from font-size and lands under a source pixel.\n"
@@ -672,67 +828,87 @@ def main():
     mono_sizes = [s for s in sizes if "mono" in strikes[s]]
     written = []
 
-    combined = out_dir / "quanta-strike.css"
-    combined.write_text(render_core(strikes, sizes, args.url_prefix, args.flat))
-    written.append(combined)
-
-    if mono_sizes:
-        mono_core = out_dir / "quanta-strike-mono.css"
-        mono_core.write_text(
-            render_core(strikes, mono_sizes, args.url_prefix, args.flat, mono_only=True)
-        )
-        written.append(mono_core)
-
-    utilities = out_dir / "quanta-strike-utilities.css"
-    utilities.write_text(render_utilities(strikes, sizes, "./quanta-strike.css"))
-    written.append(utilities)
-
-    if mono_sizes:
-        utilities_mono = out_dir / "quanta-strike-utilities-mono.css"
-        utilities_mono.write_text(
-            render_utilities(
-                strikes, mono_sizes, "./quanta-strike-mono.css", mono_only=True
-            )
-        )
-        written.append(utilities_mono)
-
-    # A per-strike file is the "I only need one size" path, so it carries its own
-    # utility classes. No second import to remember.
-    for size in sizes:
-        path = out_dir / f"quanta-strike-{size}.css"
-        path.write_text(
-            render_core(strikes, [size], args.url_prefix, args.flat)
-            + render_utilities(strikes, [size], None)
-        )
+    def write(path, text):
+        path.write_text(text)
         written.append(path)
+
+    # fonts.css — faces + vars only (the door for projects with their own scale).
+    write(out_dir / "fonts.css",
+          render_core(strikes, sizes, args.url_prefix, args.flat))
+
+    # quanta-strike.css — fonts + locked classes. The bare package entry.
+    write(
+        out_dir / "quanta-strike.css",
+        '@import "./fonts.css";\n\n'
+        + HEADER
+        + render_utilities(strikes, sizes),
+    )
+
+    # utilities.css — alias so old imports keep working.
+    write(
+        out_dir / "utilities.css",
+        "/* quanta-strike — generated by scripts/generate-css.py. Do not edit by hand.\n"
+        " * Alias of quanta-strike.css — prefer @import \"quanta-strike\".\n"
+        " */\n"
+        '@import "./quanta-strike.css";\n',
+    )
+
+    if mono_sizes:
+        write(
+            out_dir / "mono.css",
+            render_core(strikes, mono_sizes, args.url_prefix, args.flat, mono_only=True),
+        )
+        write(
+            out_dir / "utilities-mono.css",
+            '@import "./mono.css";\n\n'
+            + HEADER
+            + render_utilities(strikes, mono_sizes, mono_only=True),
+        )
+
+    # Per-strike files: faces + locked classes. Publish names are N.css.
+    for size in sizes:
+        write(
+            out_dir / f"{size}.css",
+            render_core(strikes, [size], args.url_prefix, args.flat)
+            + render_utilities(strikes, [size]),
+        )
 
     for size in mono_sizes:
-        path = out_dir / f"quanta-strike-{size}-mono.css"
-        path.write_text(
+        write(
+            out_dir / f"{size}-mono.css",
             render_core(strikes, [size], args.url_prefix, args.flat, mono_only=True)
-            + render_utilities(strikes, [size], None, mono_only=True)
+            + render_utilities(strikes, [size], mono_only=True),
         )
-        written.append(path)
 
-    # One type-scale preset per strike (prop + mono). Opt-in; core stays unopinionated.
+    # Clear previous presets (root + scale aliases) so a removed strike disappears.
+    for old in out_dir.glob("base-*.css"):
+        old.unlink()
     scale_dir = out_dir / "scale"
     if scale_dir.exists():
         for old in scale_dir.glob("base-*.css"):
             old.unlink()
     scale_dir.mkdir(parents=True, exist_ok=True)
-    for size in sizes:
-        path = scale_dir / f"base-{size}.css"
-        path.write_text(render_scale(size, sizes))
-        written.append(path)
-    for size in mono_sizes:
-        path = scale_dir / f"base-{size}-mono.css"
-        path.write_text(render_scale(size, sizes, mono=True))
-        written.append(path)
 
-    # Base-independent spacing grid. Opt-in, same tier as the scale presets.
-    grid = out_dir / "grid.css"
-    grid.write_text(render_grid())
-    written.append(grid)
+    for size in sizes:
+        write(out_dir / f"base-{size}.css", render_scale(size, sizes))
+        write(scale_dir / f"base-{size}.css", render_scale_alias(size))
+    for size in mono_sizes:
+        write(out_dir / f"base-{size}-mono.css", render_scale(size, sizes, mono=True))
+        write(scale_dir / f"base-{size}-mono.css", render_scale_alias(size, mono=True))
+
+    write(out_dir / "grid.css", render_grid())
+
+    # Drop legacy long names left by older generator runs in this out dir.
+    for legacy in (
+        "quanta-strike-mono.css",
+        "quanta-strike-utilities.css",
+        "quanta-strike-utilities-mono.css",
+    ):
+        path = out_dir / legacy
+        if path.exists():
+            path.unlink()
+    for path in out_dir.glob("quanta-strike-[0-9]*.css"):
+        path.unlink()
 
     variants = sum(len(v) for v in strikes.values())
     print(f"Wrote {len(written)} CSS file(s) for {len(sizes)} strike(s), {variants} font file(s):")
@@ -743,4 +919,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-
