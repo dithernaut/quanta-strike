@@ -8,7 +8,7 @@ design for one target size.
 
 This package doesn't just ship fonts, but the whole scaling system for web. Type, spacing, borders,
 and the rest share one source pixel. The page that uses it reads as a real low-res grid,
-not a out of place pixel font on a normal website.
+not an out of place pixel font on a normal website.
 
 🌐 [**Playground**](https://quantastrike.dithernaut.com)
 
