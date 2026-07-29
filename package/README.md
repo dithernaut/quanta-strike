@@ -6,6 +6,10 @@ A modern pixel typeface. I draw each size by hand. Non-integer scaling ruins
 pixels, so quanta-strike ships a family of _strikes_. Each strike is its own
 design for one target size.
 
+This package doesn't just ship fonts, but the whole scaling system for web. Type, spacing, borders,
+and the rest share one source pixel. The page that uses it reads as a real low-res grid,
+not a out of place pixel font on a normal website.
+
 🌐 [**Playground**](https://quantastrike.dithernaut.com)
 
 📖 **Read the story:** [dithernaut.com/posts/pixel-scaling](https://dithernaut.com/posts/pixel-scaling)
@@ -31,7 +35,9 @@ One import gives you fonts, type scale, pixel grid, and zoom:
 borders, radius, and shadows all follow `--qs-zoom`.
 
 ```css
-:root { --qs-zoom: 3; } /* optional. Integers stay sharp on every display. */
+:root {
+  --qs-zoom: 3;
+} /* optional. Integers stay sharp on every display. */
 ```
 
 If you load a `base-N` preset, use `text-*`. Do not use `.qs-N`. That class
@@ -42,8 +48,14 @@ ignores `--qs-zoom`. Mixing them puts two pixel sizes on one page.
 both branches if you want a responsive pair:
 
 ```css
-:root { --qs-zoom: 3; }
-@media (width < 48rem) { :root { --qs-zoom: 2; } }
+:root {
+  --qs-zoom: 3;
+}
+@media (width < 48rem) {
+  :root {
+    --qs-zoom: 2;
+  }
+}
 ```
 
 Other presets: `base-6` through `base-32`. Zoom defaults to `2` on 6, 10, and
@@ -129,7 +141,9 @@ borders, and the rest. Integers stay sharp on every display. `1.5` works on
 retina. Avoid values like `1.75`.
 
 ```css
-:root { --qs-zoom: 2; }
+:root {
+  --qs-zoom: 2;
+}
 ```
 
 ## Pixel grid
@@ -190,7 +204,9 @@ Safari then guesses and draws a thinner line. [`grid.css`](#pixel-grid) covers
 the whole page. Or set it once:
 
 ```css
-:where(a, u, s, ins, del, abbr) { text-decoration-thickness: var(--qs-px); }
+:where(a, u, s, ins, del, abbr) {
+  text-decoration-thickness: var(--qs-px);
+}
 ```
 
 The `text-decoration` shorthand resets the stroke. Use `text-decoration-line`
