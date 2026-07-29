@@ -46,32 +46,11 @@ if [ "$count" -eq 0 ]; then
     exit 1
 fi
 
-# CSS pointing at the flat fonts/ folder.
+# CSS pointing at the flat fonts/ folder. generate-css.py writes publish names
+# directly (fonts.css, quanta-strike.css, utilities.css, mono.css, N.css,
+# base-N.css, scale/ aliases, grid.css).
 python3 "$SCRIPT_DIR/scripts/generate-css.py" "$WOFF2_DIR" \
     --out "$PKG_DIR" --flat --url-prefix "fonts/"
-
-# Per-strike files publish as 16.css, not quanta-strike-16.css, so an import
-# reads "quanta-strike/16.css". Digits only, so the utilities file
-# below is not caught by this.
-for f in "$PKG_DIR"/quanta-strike-[0-9]*.css; do
-    [ -e "$f" ] || continue
-    size="$(basename "$f" .css)"
-    size="${size#quanta-strike-}"
-    mv "$f" "$PKG_DIR/$size.css"
-done
-
-# Same idea: "quanta-strike/utilities.css" / "quanta-strike/mono.css".
-# Per-strike files (16.css, 16-mono.css) are renamed above; the all-strikes
-# mono core and both utilities files need their publish names here.
-mv "$PKG_DIR/quanta-strike-utilities.css" "$PKG_DIR/utilities.css"
-mv "$PKG_DIR/quanta-strike-utilities-mono.css" "$PKG_DIR/utilities-mono.css"
-mv "$PKG_DIR/quanta-strike-mono.css" "$PKG_DIR/mono.css"
-# utilities-mono was generated against the pre-rename core name.
-python3 -c "
-from pathlib import Path
-p = Path('$PKG_DIR/utilities-mono.css')
-p.write_text(p.read_text().replace('./quanta-strike-mono.css', './mono.css'))
-"
 
 cp "$LICENSE_FILE" "$PKG_DIR/"
 

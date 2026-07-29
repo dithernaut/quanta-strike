@@ -29,10 +29,27 @@
   "exports": {
     ".": "./quanta-strike.css",
     "./quanta-strike.css": "./quanta-strike.css",
+    "./fonts.css": "./fonts.css",
     "./mono.css": "./mono.css",
     "./utilities.css": "./utilities.css",
     "./utilities-mono.css": "./utilities-mono.css",
     "./grid.css": "./grid.css",
+    "./base-6.css": "./base-6.css",
+    "./base-6-mono.css": "./base-6-mono.css",
+    "./base-10.css": "./base-10.css",
+    "./base-10-mono.css": "./base-10-mono.css",
+    "./base-12.css": "./base-12.css",
+    "./base-12-mono.css": "./base-12-mono.css",
+    "./base-14.css": "./base-14.css",
+    "./base-14-mono.css": "./base-14-mono.css",
+    "./base-16.css": "./base-16.css",
+    "./base-16-mono.css": "./base-16-mono.css",
+    "./base-18.css": "./base-18.css",
+    "./base-18-mono.css": "./base-18-mono.css",
+    "./base-20.css": "./base-20.css",
+    "./base-20-mono.css": "./base-20-mono.css",
+    "./base-32.css": "./base-32.css",
+    "./base-32-mono.css": "./base-32-mono.css",
     "./scale/*": "./scale/*",
     "./6.css": "./6.css",
     "./6-mono.css": "./6-mono.css",
@@ -59,6 +76,7 @@
     "scale/",
     "fonts/",
     "OFL.txt",
-    "README.md"
+    "README.md",
+    "MIGRATION.md"
   ]
 }

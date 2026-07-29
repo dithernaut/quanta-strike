@@ -6,6 +6,10 @@ A modern pixel typeface. I draw each size by hand. Non-integer scaling ruins
 pixels, so quanta-strike ships a family of _strikes_. Each strike is its own
 design for one target size.
 
+This package doesn't just ship fonts, but the whole scaling system for web. Type, spacing, borders,
+and the rest share one source pixel. The page that uses it reads as a real low-res grid,
+not a out of place pixel font on a normal website.
+
 🌐 [**Playground**](https://quantastrike.dithernaut.com)
 
 📖 **Read the story:** [dithernaut.com/posts/pixel-scaling](https://dithernaut.com/posts/pixel-scaling)
@@ -16,12 +20,52 @@ design for one target size.
 npm install quanta-strike
 ```
 
-## Use it
+Upgrading from 0.5.x? See [MIGRATION.md](./MIGRATION.md).
 
-Import the utilities, then use a class. The class sets family and size together.
+## Tailwind (recommended)
+
+One import gives you fonts, type scale, pixel grid, and zoom:
+
+```css
+@import "tailwindcss";
+@import "quanta-strike/base-12.css";
+```
+
+`text-base` is strike 12. Neighbors fill the rest of the ladder. Type, spacing,
+borders, radius, and shadows all follow `--qs-zoom`.
+
+```css
+:root {
+  --qs-zoom: 3;
+} /* optional. Integers stay sharp on every display. */
+```
+
+If you load a `base-N` preset, use `text-*`. Do not use `.qs-N`. That class
+ignores `--qs-zoom`. Mixing them puts two pixel sizes on one page.
+
+`base-12` defaults to `--qs-zoom: 2` (24px body). Under `48rem` it steps to
+`1.5` (18px). If you set `--qs-zoom` yourself, you own every breakpoint. Write
+both branches if you want a responsive pair:
+
+```css
+:root {
+  --qs-zoom: 3;
+}
+@media (width < 48rem) {
+  :root {
+    --qs-zoom: 2;
+  }
+}
+```
+
+Other presets: `base-6` through `base-32`. Zoom defaults to `2` on 6, 10, and
+12; `1` on 14 and up. Only `base-12` ships a mobile step. Mono:
+`base-12-mono.css`.
+
+## Plain CSS
 
 ```js
-import "quanta-strike/utilities.css";
+import "quanta-strike";
 ```
 
 ```html
@@ -29,26 +73,34 @@ import "quanta-strike/utilities.css";
 <code class="qs-12-mono">const pixel = 1;</code>
 ```
 
+Locked `.qs-N` classes use **px**. They keep 1 CSS px per source pixel. They
+ignore `--qs-zoom`.
+
 One strike only:
 
 ```js
 import "quanta-strike/16.css";
 ```
 
-Mono only, no proportional faces:
+Faces only. No classes. Use this when you bring your own type scale:
+
+```js
+import "quanta-strike/fonts.css";
+```
+
+Mono only:
 
 ```js
 import "quanta-strike/mono.css";
 // or one strike: import "quanta-strike/16-mono.css";
-// or locked classes: import "quanta-strike/utilities-mono.css";
 ```
 
-Or the CDN:
+CDN:
 
 ```html
 <link
   rel="stylesheet"
-  href="https://cdn.jsdelivr.net/npm/quanta-strike/utilities.css"
+  href="https://cdn.jsdelivr.net/npm/quanta-strike/quanta-strike.css"
 />
 ```
 
@@ -56,71 +108,15 @@ Strikes: `6`, `10`, `12`, `14`, `16`, `18`, `20`, `32`.
 
 ### Weights
 
-Where a strike ships more than one weight, they all sit on the same family — so
-`font-weight` and `<strong>` just work, and the class stays the same:
+Weights share one family. `font-weight` and `<strong>` pick them. The class
+stays the same:
 
 ```html
 <p class="qs-12">body text with <strong>bold</strong> in it</p>
 <p class="qs-12" style="font-weight: 300">light, if the strike draws it</p>
 ```
 
-A strike that only ships regular behaves as it always has: the browser
-synthesises bold for it.
-
-## Type scale (Tailwind)
-
-Tailwind names sizes by role (`text-base`, `text-lg`, `text-xl`). Strikes are
-fixed pixel designs (`12`, `14`, `16`). You have to pick which strike is body
-text. That pick is the base preset. It maps the whole ladder so every `text-*`
-step keeps size and family paired.
-
-A dense body often looks best on strike 12. Import `base-12`, then zoom the
-page with the root font-size:
-
-```css
-@import "tailwindcss";
-@import "quanta-strike";
-@import "quanta-strike/scale/base-12.css";
-
-html {
-  font-size: 200%; /* zoom. 100% = 1 source pixel per CSS px */
-}
-```
-
-`text-base` is now strike 12. Smaller and larger steps take the neighboring
-strikes. Rem sizes stay at `N / 16`, so the zoom scales every strike together.
-
-Want body at strike 16 and `1rem` at a 100% root? Use `base-16` instead:
-
-```css
-@import "quanta-strike/scale/base-16.css";
-```
-
-Every strike has a preset: `scale/base-6.css` through `scale/base-32.css`.
-
-For a mono type scale (code UI, terminal feel), import the mono core and a
-`base-N-mono` preset. Proportional faces stay out of the page:
-
-```css
-@import "tailwindcss";
-@import "quanta-strike/mono.css";
-@import "quanta-strike/scale/base-12-mono.css";
-```
-
-`base-N-mono` also works on top of the combined `quanta-strike` import — it
-binds `text-*` to `--font-strike-N-mono` either way. With `mono.css` alone,
-`--font-strike-N` already points at mono, so the plain `base-N` presets work
-too.
-
-## Pixel grid
-
-Opt-in. Quanta-strike sets a pixel grid on the page; a stock `border` (1px) can fall off it. E.g. at `font-size: 200%` that line is half a source pixel. Import `grid.css` to snap `border` and `outline` widths to the grid.
-
-```css
-@import "quanta-strike/grid.css";
-```
-
-`--qs-px` is one source pixel. Reuse it anywhere: `border-width: var(--qs-px)`.
+If a strike ships regular only, the browser synthesises bold.
 
 ## The one rule
 
@@ -138,13 +134,37 @@ everywhere else. Bind both in the same rule. Never split them.
 | `quanta-strike-20` | `.qs-20` | `--font-strike-20` |
 | `quanta-strike-32` | `.qs-32` | `--font-strike-32` |
 
-The `.qs-N` classes use `px`. They ignore the root font-size and stay at 1 CSS
-px per source pixel.
+## `--qs-zoom`
+
+`--qs-zoom` is the main knob. It scales the whole pixel system: type, spacing,
+borders, and the rest. Integers stay sharp on every display. `1.5` works on
+retina. Avoid values like `1.75`.
+
+```css
+:root {
+  --qs-zoom: 2;
+}
+```
+
+## Pixel grid
+
+`base-N` already loads `grid.css`. Import it alone for hand-rolled setups:
+
+```css
+@import "quanta-strike/grid.css";
+```
+
+It snaps `border`, `outline`, `ring`, and `divide` to the pixel unit. It also
+sets spacing, radius, tracking, leading, and shadow offsets.
+
+Keep `--container-*` as static rem. Derived values break Tailwind
+`@md:` / `@min-md:` container queries. For a grid-exact max-width, write
+`max-w-[calc(var(--qs-px)*N)]`.
 
 ## Mono
 
 Add `.qs-mono` to a subtree. Every strike under it switches to mono. Sizes stay
-put. The type scale never notices.
+put.
 
 ```html
 <div class="qs-mono">
@@ -152,27 +172,26 @@ put. The type scale never notices.
 </div>
 ```
 
-Each strike also ships as its own family: proportional for UI, mono for code.
-Mono is not a style of the proportional family.
-
-Prefer the mono-only imports
-above when the whole page is mono.
+Each strike ships as its own family: proportional for UI, mono for code. Mono is
+not a style of the proportional family. Prefer `base-N-mono` or `mono.css` when
+the whole page is mono.
 
 ## Responsive text
 
 `clamp()` will not work. Change the size and you must change the family. Swap
-the whole pair at a breakpoint.
+the whole pair at a breakpoint. Or change `--qs-zoom` to scale every strike
+together.
 
 ```css
 .title {
   font-family: var(--font-strike-16);
-  font-size: 16px;
+  font-size: calc(var(--qs-px) * 16);
 }
 
 @media (min-width: 48rem) {
   .title {
     font-family: var(--font-strike-32);
-    font-size: 32px;
+    font-size: calc(var(--qs-px) * 32);
   }
 }
 ```
@@ -180,27 +199,29 @@ the whole pair at a breakpoint.
 ## Underlines
 
 Each strike draws its underline one source pixel thick. The `.qs-N` and `text-*`
-classes set that stroke. Bind `--font-strike-N` yourself and you skip them, so
-Safari falls back to its own guess and draws a thinner line.
-[`grid.css`](#pixel-grid) covers the whole page. Or set it once:
+classes set that stroke. If you bind `--font-strike-N` yourself, you skip them.
+Safari then guesses and draws a thinner line. [`grid.css`](#pixel-grid) covers
+the whole page. Or set it once:
 
 ```css
-:where(a, u, s, ins, del, abbr) { text-decoration-thickness: var(--qs-px); }
+:where(a, u, s, ins, del, abbr) {
+  text-decoration-thickness: var(--qs-px);
+}
 ```
 
-The `text-decoration` shorthand resets the stroke. Reach for
-`text-decoration-line` instead.
+The `text-decoration` shorthand resets the stroke. Use `text-decoration-line`
+instead.
 
 ## What you get
 
-- `quanta-strike` loads every strike (both variants)
-- `quanta-strike/mono.css` loads mono only
-- `quanta-strike/utilities.css` / `utilities-mono.css` give the locked `.qs-N` classes
-- `quanta-strike/scale/base-12.css` (and every other base) wires the type scale
-- `quanta-strike/scale/base-12-mono.css` same ladder, mono families
-- `quanta-strike/grid.css` puts border/outline widths on the pixel grid (and exposes `--qs-px`)
-- `quanta-strike/16.css` / `16-mono.css` load one strike
-- `--font-strike-16` / `--font-strike-16-mono` for hand-rolled CSS
+- `quanta-strike`: every strike and locked `.qs-N` classes
+- `quanta-strike/fonts.css`: faces and vars only
+- `quanta-strike/mono.css`: mono faces only
+- `quanta-strike/base-12.css`: Tailwind happy path (fonts, grid, zoom, theme)
+- `quanta-strike/base-12-mono.css`: same, mono
+- `quanta-strike/grid.css`: pixel unit, border/ring/divide snaps
+- `quanta-strike/16.css` / `16-mono.css`: one strike
+- `--font-strike-16` / `--font-strike-16-mono`: hand-rolled CSS
 
 ## Linux console (headless / framebuffer)
 
