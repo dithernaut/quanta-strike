@@ -117,13 +117,13 @@ SPINNER=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
 SPINNER_I=0
 BAR_WIDTH=22
 
-# Progress is counted in steps — one per run_step call. main() precomputes the
-# total from the selected strikes and options (see plan_progress) so the bar is
-# a real fraction of the build rather than a guess.
+# Progress ticks. Most steps weigh 1; nerd steps weigh more (see budget block).
 PROGRESS_TOTAL=0
 PROGRESS_DONE=0
 PROGRESS_PHASE=""
 PROGRESS_LABEL=""
+PROGRESS_STEP_WEIGHT=1
+NERD_STEP_WEIGHT=1
 BAR_ON_SCREEN=false
 
 bar_enabled() {
@@ -258,16 +258,20 @@ print_line() {
 # Run one build step with its output captured, ticking the progress bar.
 # Quiet mode animates the bar and stays silent unless the step fails, in which
 # case the captured output is dumped. Verbose runs it inline, unfiltered.
+# Weight defaults to 1; set PROGRESS_STEP_WEIGHT beforehand for heavier steps.
 # Usage: run_step "<label>" <command> [args...]
 run_step() {
     local label="$1"; shift
+    local weight=$PROGRESS_STEP_WEIGHT
+    PROGRESS_STEP_WEIGHT=1
+    [ "$weight" -ge 1 ] 2>/dev/null || weight=1
     PROGRESS_LABEL="$label"
     local rc=0 out_line
 
     if [ "$VERBOSE" = true ]; then
         print_info "$label"
         "$@" || rc=$?
-        PROGRESS_DONE=$((PROGRESS_DONE + 1))
+        PROGRESS_DONE=$((PROGRESS_DONE + weight))
         if [ "$rc" -ne 0 ]; then
             print_error "$label — failed"
         fi
@@ -291,7 +295,7 @@ run_step() {
         echo "  · $label"
     fi
 
-    PROGRESS_DONE=$((PROGRESS_DONE + 1))
+    PROGRESS_DONE=$((PROGRESS_DONE + weight))
     bar_draw
 
     if [ "$rc" -ne 0 ]; then
@@ -1034,6 +1038,7 @@ run_nerd_fonts_generator() {
 
     local fam
     for fam in "${families[@]}"; do
+        PROGRESS_STEP_WEIGHT=$NERD_STEP_WEIGHT
         if ! run_step "nerd · $fam" \
                 "$SCRIPTS_DIR/generate-nerd-fonts" "$TTF_GROUP_DIR" "$nerd_dir" "$fam"; then
             return 1
@@ -1718,9 +1723,10 @@ main() {
         exit 0
     fi
 
-    # Budget the progress bar: every run_step below is one unit. Per variant —
-    # one png-to-ttf per weight, a source verify, one metadata pass per strike,
-    # optional features, anchor, optional scale, an output verify.
+    # Budget the progress bar. Per variant — one png-to-ttf per weight, a source
+    # verify, one metadata pass per strike, optional features, anchor, optional
+    # scale, an output verify. Nerd steps are weighted ~9× the preceding total
+    # so they own ~90% of the bar (matching wall time).
     local per_variant=$(( style_count + 1 + ${#selected_families[@]} + 1 + 1 ))
     [ "$do_small_caps" = true ] && per_variant=$((per_variant + 1))
     [ "$do_onum" = true ] && per_variant=$((per_variant + 1))
@@ -1730,7 +1736,14 @@ main() {
     PROGRESS_TOTAL=$(( per_variant * 2 ))
     [ "$PSF_SKIP" != true ] && PROGRESS_TOTAL=$(( PROGRESS_TOTAL + style_count ))
     [ "$do_woff2" = true ] && PROGRESS_TOTAL=$(( PROGRESS_TOTAL + 2 ))
-    [ "$do_nerd" = true ] && PROGRESS_TOTAL=$(( PROGRESS_TOTAL + ${#selected_families[@]} ))
+    NERD_STEP_WEIGHT=1
+    if [ "$do_nerd" = true ]; then
+        local nerd_n=${#selected_families[@]}
+        local nerd_ticks=$(( PROGRESS_TOTAL * 9 ))
+        NERD_STEP_WEIGHT=$(( (nerd_ticks + nerd_n - 1) / nerd_n ))
+        [ "$NERD_STEP_WEIGHT" -lt 1 ] && NERD_STEP_WEIGHT=1
+        PROGRESS_TOTAL=$(( PROGRESS_TOTAL + nerd_n * NERD_STEP_WEIGHT ))
+    fi
     if [ "$do_nerd" = true ] && [ "$do_woff2" = true ] && [ "$do_woff2_nerd" = true ]; then
         PROGRESS_TOTAL=$(( PROGRESS_TOTAL + 1 ))
     fi
