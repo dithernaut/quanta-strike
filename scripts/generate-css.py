@@ -572,107 +572,9 @@ def render_scale_alias(base, *, mono=False):
     )
 
 
-# Tailwind's border-width utilities, suffix → the properties they set. The bare
-# class (no number) is 1px in stock Tailwind, i.e. one source pixel here.
-BORDER_SIDES = (
-    ("", ("border-width",)),
-    ("-x", ("border-left-width", "border-right-width")),
-    ("-y", ("border-top-width", "border-bottom-width")),
-    ("-t", ("border-top-width",)),
-    ("-r", ("border-right-width",)),
-    ("-b", ("border-bottom-width",)),
-    ("-l", ("border-left-width",)),
-    ("-s", ("border-inline-start-width",)),
-    ("-e", ("border-inline-end-width",)),
-)
-
 # Tailwind's documented widths. Anything else (border-3, border-5) stays literal
 # px — covering every integer would bloat the sheet for no one.
 BORDER_WIDTHS = (1, 2, 4, 8)
-
-
-def border_grid_rules():
-    """Every border-width utility — all sides, axes and logical edges."""
-    lines = []
-    for suffix, props in BORDER_SIDES:
-        for name, n in [(f"border{suffix}", 1)] + [
-            (f"border{suffix}-{w}", w) for w in BORDER_WIDTHS
-        ]:
-            decls = " ".join(f"{p}: {grid_length(n)};" for p in props)
-            lines.append(f"  .{name} {{ {decls} }}\n")
-    return "".join(lines)
-
-
-def outline_grid_rules():
-    lines = ["  .outline { outline-width: var(--qs-px); }\n"]
-    for w in BORDER_WIDTHS:
-        lines.append(f"  .outline-{w} {{ outline-width: {grid_length(w)}; }}\n")
-    return "".join(lines)
-
-
-def grid_expr(n):
-    """N source pixels as a calc()-embeddable expression (no outer calc)."""
-    if n == 1:
-        return "var(--qs-px)"
-    return f"var(--qs-px) * {n}"
-
-
-def ring_grid_rules():
-    """Ring widths are an internal box-shadow — not themeable. Override in place."""
-    lines = []
-    for name, n in [("ring", 1)] + [(f"ring-{w}", w) for w in BORDER_WIDTHS]:
-        expr = grid_expr(n)
-        lines.append(
-            f"  .{name} {{\n"
-            f"    --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 "
-            f"calc({expr} + var(--tw-ring-offset-width)) "
-            f"var(--tw-ring-color, currentcolor);\n"
-            f"    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), "
-            f"var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);\n"
-            f"  }}\n"
-        )
-    for w in BORDER_WIDTHS:
-        lines.append(
-            f"  .ring-offset-{w} {{\n"
-            f"    --tw-ring-offset-width: {grid_length(w)};\n"
-            f"    --tw-ring-offset-shadow: var(--tw-ring-inset,) 0 0 0 "
-            f"var(--tw-ring-offset-width) var(--tw-ring-offset-color);\n"
-            f"  }}\n"
-        )
-    return "".join(lines)
-
-
-def divide_grid_rules():
-    """divide-x / divide-y set child border widths; not covered by BORDER_SIDES."""
-    lines = []
-    for axis, (start, end, reverse) in (
-        ("x", ("border-inline-start-width", "border-inline-end-width",
-               "tw-divide-x-reverse")),
-        ("y", ("border-top-width", "border-bottom-width",
-               "tw-divide-y-reverse")),
-    ):
-        for name, n in [(f"divide-{axis}", 1)] + [
-            (f"divide-{axis}-{w}", w) for w in BORDER_WIDTHS
-        ]:
-            expr = grid_expr(n)
-            if axis == "x":
-                style = (
-                    "    border-inline-style: var(--tw-border-style);\n"
-                )
-            else:
-                style = (
-                    "    border-bottom-style: var(--tw-border-style);\n"
-                    "    border-top-style: var(--tw-border-style);\n"
-                )
-            lines.append(
-                f"  :where(.{name} > :not(:last-child)) {{\n"
-                f"    --{reverse}: 0;\n"
-                f"{style}"
-                f"    {start}: calc(({expr}) * var(--{reverse}));\n"
-                f"    {end}: calc(({expr}) * calc(1 - var(--{reverse})));\n"
-                f"  }}\n"
-            )
-    return "".join(lines)
 
 
 def shadow_theme_rules():
@@ -709,7 +611,7 @@ def shadow_theme_rules():
 
 
 def render_grid():
-    """Pixel grid: --qs-px, derived theme lengths, border/ring/divide snaps.
+    """Pixel grid: --qs-px and derived Tailwind theme lengths.
 
     Owns --qs-px only — never --qs-zoom. The zoom default lives in base-N's
     @layer theme, and --qs-px reads it via var(--qs-zoom, 1). Disjoint ownership
@@ -759,6 +661,29 @@ def render_grid():
         "     pixels so it follows --qs-px. */\n"
         "  --spacing: calc(var(--qs-px) * 4);\n"
         "\n"
+        "  /* Drive Tailwind's line utility generators so responsive, state, and\n"
+        "     other variants use the same grid widths as their base utilities.\n"
+        "     Divide resolves through the border-width namespace. */\n"
+        "  --default-border-width: var(--qs-px);\n"
+        + "".join(
+            f"  --border-width-{w}: {grid_length(w)};\n"
+            for w in BORDER_WIDTHS
+        )
+        + "  --default-outline-width: var(--qs-px);\n"
+        + "".join(
+            f"  --outline-width-{w}: {grid_length(w)};\n"
+            for w in BORDER_WIDTHS
+        )
+        + "  --default-ring-width: var(--qs-px);\n"
+        + "".join(
+            f"  --ring-width-{w}: {grid_length(w)};\n"
+            for w in BORDER_WIDTHS
+        )
+        + "".join(
+            f"  --ring-offset-width-{w}: {grid_length(w)};\n"
+            for w in BORDER_WIDTHS
+        )
+        + "\n"
         "  /* Integer radii — keep rounded-* doing something; 0 everywhere is\n"
         "     the more honest pixel default if you want it. */\n"
         f"{radius_lines}"
@@ -773,15 +698,6 @@ def render_grid():
         "  /* Shadow offsets on the grid; blur stays soft. */\n"
         f"{shadow_theme_rules()}"
         "}\n"
-        "\n/* px-literal widths: stock Tailwind leaves the grid when --qs-px grows.\n"
-        "   One source pixel is the thinnest honest line. N means N source pixels;\n"
-        "   other numbers stay literal px — use border-[length:calc(var(--qs-px)*3)]. */\n"
-        "@layer utilities {\n"
-        + border_grid_rules()
-        + outline_grid_rules()
-        + ring_grid_rules()
-        + divide_grid_rules()
-        + "}\n"
         "\n/* Underline and strikethrough, the same unit as the borders above. Left at\n"
         "   `auto` the engines split: Blink and Gecko read the font's own stroke,\n"
         "   WebKit derives one from font-size and lands under a source pixel.\n"
