@@ -572,35 +572,9 @@ def render_scale_alias(base, *, mono=False):
     )
 
 
-# Tailwind's border-width utilities, suffix → the properties they set. The bare
-# class (no number) is 1px in stock Tailwind, i.e. one source pixel here.
-BORDER_SIDES = (
-    ("", ("border-width",)),
-    ("-x", ("border-left-width", "border-right-width")),
-    ("-y", ("border-top-width", "border-bottom-width")),
-    ("-t", ("border-top-width",)),
-    ("-r", ("border-right-width",)),
-    ("-b", ("border-bottom-width",)),
-    ("-l", ("border-left-width",)),
-    ("-s", ("border-inline-start-width",)),
-    ("-e", ("border-inline-end-width",)),
-)
-
 # Tailwind's documented widths. Anything else (border-3, border-5) stays literal
 # px — covering every integer would bloat the sheet for no one.
 BORDER_WIDTHS = (1, 2, 4, 8)
-
-
-def border_grid_rules():
-    """Every border-width utility — all sides, axes and logical edges."""
-    lines = []
-    for suffix, props in BORDER_SIDES:
-        for name, n in [(f"border{suffix}", 1)] + [
-            (f"border{suffix}-{w}", w) for w in BORDER_WIDTHS
-        ]:
-            decls = " ".join(f"{p}: {grid_length(n)};" for p in props)
-            lines.append(f"  .{name} {{ {decls} }}\n")
-    return "".join(lines)
 
 
 def outline_grid_rules():
@@ -759,6 +733,14 @@ def render_grid():
         "     pixels so it follows --qs-px. */\n"
         "  --spacing: calc(var(--qs-px) * 4);\n"
         "\n"
+        "  /* Drive Tailwind's border utility generator so responsive, state, and\n"
+        "     other variants use the same grid widths as their base utilities. */\n"
+        "  --default-border-width: var(--qs-px);\n"
+        + "".join(
+            f"  --border-width-{w}: {grid_length(w)};\n"
+            for w in BORDER_WIDTHS
+        )
+        + "\n"
         "  /* Integer radii — keep rounded-* doing something; 0 everywhere is\n"
         "     the more honest pixel default if you want it. */\n"
         f"{radius_lines}"
@@ -773,11 +755,10 @@ def render_grid():
         "  /* Shadow offsets on the grid; blur stays soft. */\n"
         f"{shadow_theme_rules()}"
         "}\n"
-        "\n/* px-literal widths: stock Tailwind leaves the grid when --qs-px grows.\n"
-        "   One source pixel is the thinnest honest line. N means N source pixels;\n"
-        "   other numbers stay literal px — use border-[length:calc(var(--qs-px)*3)]. */\n"
+        "\n/* Other px-literal line utilities: stock Tailwind leaves the grid when\n"
+        "   --qs-px grows. One source pixel is the thinnest honest line. N means\n"
+        "   N source pixels; other numbers stay literal px. */\n"
         "@layer utilities {\n"
-        + border_grid_rules()
         + outline_grid_rules()
         + ring_grid_rules()
         + divide_grid_rules()
