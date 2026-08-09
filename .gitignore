@@ -14,3 +14,6 @@ __pycache__/
 # Build zip
 quanta-strike-*.*.*.zip
 quanta-strike.zip
+
+# release.sh output
+/dist/
