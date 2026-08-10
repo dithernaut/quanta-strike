@@ -70,3 +70,6 @@ echo "next (run yourself — this script doesn't touch git or GitHub):"
 echo "  gh release create v$VERSION $DIST_DIR/*.zip --title \"quanta strike v$VERSION\""
 echo "  # or, if the release already exists:"
 echo "  gh release upload v$VERSION $DIST_DIR/*.zip"
+echo
+echo "sha256 for the Homebrew casks:"
+shasum -a 256 "$DIST_DIR"/*.zip
