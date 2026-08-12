@@ -10,6 +10,11 @@ for one target size.
 
 💾 [**Download .ttf and .woff2**](https://github.com/dithernaut/quanta-strike/releases/latest/download/quanta-strike.zip)
 
+Or install with Homebrew:
+```sh
+brew install --cask dithernaut/tap/quanta-strike-fonts
+```
+
 📖 **Read the story:** [dithernaut.com/posts/pixel-scaling](https://dithernaut.com/posts/pixel-scaling)
 
 ![All the available strikes of `quanta-strike`](docs/quanta-strikes.avif)
@@ -65,7 +70,15 @@ everywhere else. The CSS the build emits binds them on purpose.
 
 ### On your device
 
-To use the typeface on your device simply [latest zip](https://github.com/dithernaut/quanta-strike/releases/latest/download/quanta-strike.zip), and install the fonts to your system
+macOS via Homebrew:
+
+```bash
+brew install --cask dithernaut/tap/quanta-strike-fonts
+# Nerd Font variants:
+brew install --cask dithernaut/tap/quanta-strike-fonts-nerd
+```
+
+Or grab the [latest zip](https://github.com/dithernaut/quanta-strike/releases/latest/download/quanta-strike.zip) and install the fonts to your system.
 
 ### On your website
 
