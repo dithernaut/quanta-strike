@@ -174,9 +174,12 @@ For example, `<button class="border-1 outline-1">...</button>` follows
 These theme-backed utilities require Tailwind v4. In plain CSS, use
 `var(--qs-px)` directly.
 
+Sizing and spacing utilities also follow the grid and `--qs-zoom`. Use ordinary
+Tailwind classes such as `w-3.5` and `max-w-3.5` instead of recreating them with
+arbitrary values such as `w-[calc(var(--qs-px)*14)]`.
+
 Keep `--container-*` as static rem. Derived values break Tailwind
-`@md:` / `@min-md:` container queries. For a grid-exact max-width, write
-`max-w-[calc(var(--qs-px)*N)]`.
+`@md:` / `@min-md:` container queries.
 
 ## Mono
 

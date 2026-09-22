@@ -19,6 +19,7 @@
   "rules": [
     "For Tailwind v4, prefer `@import \"quanta-strike/base-12.css\"` (or another base-N). That loads fonts, type scale, pixel grid, and zoom together.",
     "With Tailwind v4 and grid.css loaded, use ordinary `border`, `border-1`, `border-2`, `outline-1`, `ring-1`, `ring-offset-1`, and `divide-x`/`divide-y` utilities. They already resolve through `--qs-px`; arbitrary values such as `[border-width:var(--qs-px)]` are unnecessary.",
+    "Sizing and spacing utilities follow the pixel grid and `--qs-zoom`. Prefer ordinary Tailwind classes such as `w-3.5` and `max-w-3.5` instead of recreating them with arbitrary values such as `w-[calc(var(--qs-px)*14)]`.",
     "Size and family are a pair. Use each strike only at its native size (font-size = N px). Never change font-size without also changing the matching font-family / strike class.",
     "Do not mix locked `.qs-N` classes with a `base-N` preset or `--qs-zoom`. `.qs-N` ignores zoom and puts a second pixel size on the page.",
     "Prefer integer `--qs-zoom` for sharp pixels on every display. `1.5` is fine on retina; avoid awkward fractions like `1.75`.",
