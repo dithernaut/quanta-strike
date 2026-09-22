@@ -22,7 +22,7 @@ npm install quanta-strike
 
 Upgrading from 0.5.x? See [MIGRATION.md](./MIGRATION.md).
 
-## Tailwind (recommended)
+## Tailwind v4 (recommended)
 
 One import gives you fonts, type scale, pixel grid, and zoom:
 
@@ -157,9 +157,29 @@ retina. Avoid values like `1.75`.
 It snaps `border`, `outline`, `ring`, and `divide` to the pixel unit. It also
 sets spacing, radius, tracking, leading, and shadow offsets.
 
+Use the ordinary Tailwind utilities for grid-aligned strokes:
+
+| Tailwind utility | Width |
+| --- | --- |
+| `border`, `border-1` | `var(--qs-px)` |
+| `border-2` | `calc(var(--qs-px) * 2)` |
+| `outline`, `outline-1` | `var(--qs-px)` |
+| `ring`, `ring-1` | `var(--qs-px)` |
+| `ring-offset-1` | `var(--qs-px)` |
+| `divide-x`, `divide-y` | `var(--qs-px)` |
+
+For example, `<button class="border-1 outline-1">...</button>` follows
+`--qs-zoom` automatically. Arbitrary values such as
+`[border-width:var(--qs-px)]` are unnecessary when `grid.css` is loaded.
+These theme-backed utilities require Tailwind v4. In plain CSS, use
+`var(--qs-px)` directly.
+
+Sizing and spacing utilities also follow the grid and `--qs-zoom`. Use ordinary
+Tailwind classes such as `w-3.5` and `max-w-3.5` instead of recreating them with
+arbitrary values such as `w-[calc(var(--qs-px)*14)]`.
+
 Keep `--container-*` as static rem. Derived values break Tailwind
-`@md:` / `@min-md:` container queries. For a grid-exact max-width, write
-`max-w-[calc(var(--qs-px)*N)]`.
+`@md:` / `@min-md:` container queries.
 
 ## Mono
 
