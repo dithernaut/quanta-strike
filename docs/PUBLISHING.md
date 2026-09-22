@@ -99,31 +99,23 @@ Tag that commit. Then anyone can rebuild that exact release.
 
 ## 5. Publish the GitHub release
 
-Zip the build folder and attach it to a release on the tag. A normal release
-build (`./build.sh --nerd-fonts`, no `--psf`) fills `build/ttf` and
-`build/woff2` (and puts `OFL.txt` next to the fonts).
-
-Use a stable name (`quanta-strike.zip`) so outside links can point at
-`…/releases/latest/download/quanta-strike.zip` without a version in the URL.
-Rename the folder inside the zip so unpacking yields `quanta-strike/`:
+Package the completed build:
 
 ```bash
-rm -rf build/tmp                    # staging, only present if a build failed
-find build -name .DS_Store -delete  # macOS clutter
-mv build quanta-strike
-zip -r quanta-strike.zip quanta-strike
-mv quanta-strike build
+./release.sh
 ```
 
-If you built console PSF earlier in the same tree, remove it before the main
-zip (`rm -rf build/psf`) or keep it for the optional asset below. Do not put
-personal charset builds in the primary download.
+The script recreates `dist/` and produces separate, stable asset names:
 
-Both cleanup lines matter. `build/tmp` holds intermediate TTFs. `.DS_Store`
-ships noise to strangers.
+- `dist/quanta-strike.zip` — standard TTF and WOFF2 builds, excluding Nerd Fonts
+- `dist/quanta-strike-nerd.zip` — mono Nerd Font TTFs, when built with `--nerd-fonts`
+- `dist/quanta-strike-console-psf.zip` — console PSF fonts, when built with `--psf`
 
-The zip carries the TTFs, the WOFF2 files, the CSS, and the licence. That covers
-a designer who installs fonts and a developer who wires up a site.
+The stable names let outside links point at
+`…/releases/latest/download/quanta-strike.zip` without a version in the URL.
+Each archive unpacks into `quanta-strike/`. The script also prints SHA-256
+checksums for the Homebrew casks and the commands for creating or updating the
+GitHub release. It does not touch git or GitHub itself.
 
 ### Optional: console PSF asset
 
@@ -132,7 +124,7 @@ Raspberry Pi / Linux framebuffer users:
 
 ```bash
 ./build.sh -y --psf --psf-scale 2          # or interactive, say yes to PSF
-zip -r quanta-strike-console-psf.zip build/psf
+./release.sh
 ```
 
 Ship the default Lat15 `console-charset.json` for that asset. Leave personal
@@ -179,8 +171,7 @@ cat VERSION                    # 2. check the number
 git add VERSION package/package.json
 git commit -m "Release $(cat VERSION)"
 git tag v$(cat VERSION) && git push && git push --tags
-mv build quanta-strike && zip -r quanta-strike.zip quanta-strike && mv quanta-strike build   # 5. GitHub release
-# optional: zip -r quanta-strike-console-psf.zip build/psf
+./release.sh                    # 5. create separate standard, Nerd and optional PSF assets
 cd package && npm publish      # 6. send the package
 ```
 
@@ -192,9 +183,8 @@ Every release:
 - [ ] `./build-package.sh`, version line matches
 - [ ] `git add VERSION package/package.json && git commit -m "Release $(cat VERSION)"`
 - [ ] `git tag v$(cat VERSION) && git push && git push --tags`
-- [ ] `rm -rf build/tmp && find build -name .DS_Store -delete` (optional, shouldn't be there anymore)
-- [ ] `mv build quanta-strike && zip -r quanta-strike.zip quanta-strike && mv quanta-strike build`, attach to the GitHub release
-- [ ] Optional: `./build.sh -y --psf` and attach `quanta-strike-console-psf.zip` as a second asset
+- [ ] `./release.sh`; attach `dist/quanta-strike.zip` and `dist/quanta-strike-nerd.zip` to the GitHub release
+- [ ] Optional: build with `--psf` first and attach `dist/quanta-strike-console-psf.zip` too
 - [ ] `cd package && npm pack --dry-run`, read the list
 - [ ] `npm publish`
 - [ ] `npm view quanta-strike version` shows the new number
